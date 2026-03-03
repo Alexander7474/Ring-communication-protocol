@@ -11,11 +11,16 @@
 #include "driver.h"
 
 void send_sockg(int sock, char *msg) {
-    int cc = write(sock, msg, sizeof(char)*SMAX);                                                
-    if(cc == -1) FATAL("Send msgs write");
+        int cc = write(sock, msg, sizeof(char)*SMAX);                                                
+        if(cc == -1) FATAL("Send msgs write");
 }
 
 void receiv_sockd(int sock, char *msg)  {
-    int cc = read(sock, msg, sizeof(char)*SMAX);
-    if(cc == -1) FATAL("Receiv message");
+        int cc = read(sock, msg, sizeof(char)*SMAX);
+        if(cc == -1) FATAL("Receiv message");
+}
+
+void generate_token(char *buffer){
+        char token[TOKEN_SIZE+1] = "00000000";
+        memcpy(buffer, token, TOKEN_SIZE);
 }

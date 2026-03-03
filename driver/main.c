@@ -13,113 +13,107 @@
 // server qui se parle a lui meme avec son fils (bizarre)
 int main (int argc, char *argv[])
 {
-    if(argc != 2) FATAL("Nombre d'arguments incorrect.\n Usage: ./driver address");
+        if(argc != 2) FATAL("Nombre d'arguments incorrect.\n Usage: ./driver address");
  
-    // pipe entre anneausockd et anneausockg
-    int ppl[2];
-    if (pipe(ppl) < 0) {
-        FATAL("pipe");
-    }
+        char recv_buffer[SMAX];
+        char send_buffer[SMAX];
+        int cc, sockd, max_sd;
+        int newsockd = 0;
+        int sockg = 0;
+        struct sockaddr_in servd;
 
-    pid_t pid;
-    pid = fork();
-    if(pid == -1){
-      FATAL("fork anneausockd");  
-    }
-    if (pid == 0)
-    {
-      // Déclaration des variables
-      char nom[SMAX]; // On fera plus tard de l'allocation dynamique
-      int cc, sock;
-      struct sockaddr_in serv;
+        servd.sin_family = AF_INET;  // On nous demandait d'utiliser le domaine Internet
+        servd.sin_port = htons(PORT);    // htons(PORT) pour convertir le numéro de port
+        // hp->h_addr = hp->h_addr_list[0]
+        servd.sin_addr.s_addr = htonl(INADDR_ANY);
 
-      close(ppl[0]); // Close read end of pipe
+        sockd = socket(AF_INET, SOCK_STREAM, 0);  // Création de la socket
 
-      // "serv." car c'est une structure
-      // Structure du serveur
-      serv.sin_family = AF_INET;  // On nous demandait d'utiliser le domaine Internet
-      serv.sin_port = htons(PORT);    // htons(PORT) pour convertir le numéro de port
-      // hp->h_addr = hp->h_addr_list[0]
-      serv.sin_addr.s_addr = htonl(INADDR_ANY);
+        int opt = 1;
+        setsockopt(sockd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt));
+        cc = bind(sockd, (struct sockaddr *) &servd, sizeof(servd));
+        if(cc == -1) FATAL("bind"); // Erreur à l'attachement
 
-      sock = socket(AF_INET, SOCK_STREAM, 0);  // Création de la socket
+        cc = listen(sockd, 5);
+        if(cc == -1) FATAL("listen");
 
-      int opt = 1;
-      setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt));
-      cc = bind(sock, (struct sockaddr *) &serv, sizeof(serv));
-      if(cc == -1) FATAL("bind"); // Erreur à l'attachement
+        fd_set readfds;
+        while(1){
+                int data_recv = 0;
 
-      cc = listen(sock, 5);
-      if(cc == -1) FATAL("listen");
+                FD_ZERO(&readfds);
+                FD_SET(sockd, &readfds);
+                max_sd = sockd;
 
-      printf("Serveur prêt !\n");
-      int lenpserv = sizeof(serv);
-      int newsockd = accept(sock, (struct sockaddr *)&serv, (socklen_t *) &lenpserv);
+                if(newsockd>0)
+                        FD_SET(newsockd, &readfds);
+                else 
+                        printf("Aucun client connécté\n");
 
-      char msg[128];
-      while(1){
-        receiv_sockd(newsockd, msg);
-        printf("Message recu: %s\n", msg);
-        write(ppl[1], msg, sizeof(char)*128);
-      }
-      close(sock);
-      close(ppl[1]);
-      exit(0);
-    }
+                if(newsockd>sockd)
+                        max_sd = newsockd;
 
-    pid = fork();
-    if (pid == -1)
-    {
-      FATAL("fork anneausockg");
-    }
-    if (pid == 0)
-    {
-      printf("Ouverture de anneausockg.\n", pid);
-      struct hostent * hp;
-      struct sockaddr_in serv;
-      int sock;
+                struct timeval timeout;
+                timeout.tv_sec = 1;
+                timeout.tv_usec = 0;
 
-      close(ppl[1]); // Close write end of pipe
+                int activity = select(max_sd+1, &readfds, NULL, NULL, &timeout);
 
-      hp = gethostbyname(argv[1]);
-      if(hp == NULL) FATAL("gethostbyname");  // Toujours tester pour éviter d'accumuler les erreurs
+                if(activity < 0)
+                        FATAL("activity");
 
-      // Structure du serveur
-      serv.sin_family = AF_INET;
-      serv.sin_port = htons(PORT);
-      bcopy(hp->h_addr, (char *) & serv.sin_addr, hp->h_length);
+                if(FD_ISSET(sockd, &readfds)){
+                        int lenpservd = sizeof(servd);
+                        newsockd = accept(sockd, (struct sockaddr *)&servd, (socklen_t *) &lenpservd);
+                        printf("Sockd nouvelle connection !\n");
+                }
 
-      sock = socket(AF_INET, SOCK_STREAM, 0);
 
-      if(connect(sock, (struct sockaddr*) &serv, sizeof(serv)) == -1){
-          FATAL("Connect socket");
-      }
+                if(FD_ISSET(newsockd, &readfds)){
+                        receiv_sockd(newsockd, recv_buffer);
+                        printf("Message recu: %s\n", recv_buffer);
+                        data_recv = 1;
+                }else{ // si l'on ne recoit rien depuis MAX_WAIT, on regénére un token
+                        generate_token(send_buffer);
+                }
 
-      char msg[128] = "00000000........";
-      char token[TOKEN_SIZE+1];
-      token[TOKEN_SIZE] = '\0';
+                // connection de sockg
+                struct hostent * hp;
+                struct sockaddr_in servg;
 
-      printf("Client prêt !\n");
-      while(1){
-        memcpy(token, msg, TOKEN_SIZE); // extraction du token dans le message
-        int value = (int)strtol(token, NULL, 16);
-        value++;
-        snprintf(token, sizeof(token), "%08X", value);  // uppercase, zero-padded to 8 chars
-        memcpy(msg, token, TOKEN_SIZE); 
-         
-        printf("Envoie: %s\n", msg);
-        send_sockg(sock, msg);
-        read(ppl[0], msg, sizeof(char)*128);
-        printf("Message du pipe: %s\n", msg);
-        sleep(1);
-      }
-      close(sock);
-      close(ppl[0]);
+                // connection de sockg avec address en argument
+                if(sockg <= 0){
+                        hp = gethostbyname(argv[1]);
+                        if(hp == NULL) FATAL("gethostbyname");  // Toujours tester pour éviter d'accumuler les erreurs
 
-      exit(0);
-    }
+                        servg.sin_family = AF_INET;
+                        servg.sin_port = htons(PORT);
+                        bcopy(hp->h_addr, (char *) & servg.sin_addr, hp->h_length);
 
-    sleep(999);
+                        sockg = socket(AF_INET, SOCK_STREAM, 0);
 
-    return 0;
+                        if(connect(sockg, (struct sockaddr*) &servg, sizeof(servg)) == -1){
+                          FATAL("Connect socket");
+                        }
+                        printf("Client prêt !\n");
+                }
+
+                if(data_recv){
+                        char token[TOKEN_SIZE+1];
+                        memcpy(token, recv_buffer, TOKEN_SIZE); // extraction du token dans le message
+                        int value = (int)strtol(token, NULL, 16);
+                        value++;
+                        snprintf(token, sizeof(token), "%08X", value);  // uppercase, zero-padded to 8 chars
+                        memcpy(send_buffer, token, TOKEN_SIZE); 
+                } 
+                
+                printf("Envoie: %s\n", send_buffer);
+                send_sockg(sockg, send_buffer);
+        }
+        
+        close(sockd);
+        close(sockg);
+
+        exit(0);
+        return 0;
 }
