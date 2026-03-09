@@ -13,7 +13,14 @@ Le driver peut envoyer des données à comm à travers un unix socket quand les 
 
 ### Comm
 
+Le but sera de faire un programme "user-friendy" dans le style d'un interpréteur de commandes où l'utilisateur enverra les messages / informations qu'il souhaite envoyer, et recevra les messages destinés aux utilisateurs de l'anneau.
 
+- "help" renverra la liste des commandes possibles
+
+	-> echo [MESSAGE] [ADRESSE | HOSTNAME] : envoit un message à toutes les machines de l'anneau ou à un utilisateur spécifique
+	-> file	[FICHIER] [ADRESSE | HOSTNAME] : envoit un fichier à toutes les machines de l'anneau ou à un utilisateur spécifique
+	-> hosts : renvoie toutes les informations sur les clients de l'anneau
+	-> whoami : renvoie les informations qui me sont concernées sur l'anneau
 
 ### Circulation du token 
 
