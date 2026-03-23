@@ -1,5 +1,5 @@
 /**
- * Taill max d'un message 
+ * Taille max d'un message 
  */
 #define SMAX 64
 
@@ -18,4 +18,7 @@
  */
 #define MAX_WAIT 5
 
-#define UNIX_SOCKET_PATH "/somewhere"
+/**
+ * Chemin où stocker la socket Unix qui est un fichier local
+*/
+#define UNIX_SOCKET_PATH "/tmp/localsock.sock"
