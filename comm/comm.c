@@ -25,14 +25,14 @@ void help() {
 }
 
 // Construit le paquet et l'envoie au Driver pour le faire circuler dans l'anneau jusqu'au destinataire
-void envoyer_paquets(int localsack, char * msg, char * token, char * destinataire) {
+static void _envoyer_paquets(int localsock, const char * msg, const char * token, const char * destinataire) {
 
     int cc;
     int msg_len = strlen(msg);
-    int nb_bits_envoyes = 0;
+    int nb_octets_envoyes = 0;
     struct in_addr addr;
 
-    // Récupération de l'adresse IP de la machine destinaire si le hostname a été passé en paramètre à la place de l'adresse IP
+    // Récupération de l'adresse IP de la machine destinataire si le hostname a été passé en paramètre à la place de l'adresse IP
     // inet_pton retourne 1 si la conversion a réussi, sinon on tente gethostbyname
     if(inet_pton(AF_INET, destinataire, &addr) != 1) {
         struct hostent * hp = gethostbyname(destinataire);
@@ -42,19 +42,19 @@ void envoyer_paquets(int localsack, char * msg, char * token, char * destinatair
     }
 
     // Envoyer des paquets tant qu'il reste du contenu à envoyer car il faut gérer le cas où la taille du contenu est supérieur à 256
-    while(nb_bits_envoyes < msg_len) {
+    while(nb_octets_envoyes < msg_len) {
 
-        int nb_bits_a_envoyer, current_octet;
+        int nb_octets_a_envoyer, current_octet;
         bool dernier_paquet;
         char urgent;
         char paquet[URGENT_SIZE + TOKEN_SIZE + ADDR_SIZE + CONTENT_SIZE];   // 1 + 4 + 4 + 32 = 41 octets (taille d'un paquet)
 
         // Calcul du nombre de bits à envoyer dans ce paquet
-        nb_bits_a_envoyer = msg_len - nb_bits_envoyes;
-        if(nb_bits_a_envoyer > CONTENT_SIZE) nb_bits_a_envoyer = CONTENT_SIZE;  // S'assure que la partie message du paquet ne dépasse pas 256 bits
+        nb_octets_a_envoyer = msg_len - nb_octets_envoyes;
+        if(nb_octets_a_envoyer > CONTENT_SIZE) nb_octets_a_envoyer = CONTENT_SIZE;  // S'assure que la partie message du paquet ne dépasse pas 256 bits
 
         // Détermine si ce paquet sera le dernier envoyé ou pas
-        if(nb_bits_envoyes + nb_bits_a_envoyer == msg_len) dernier_paquet = true;
+        if(nb_octets_envoyes + nb_octets_a_envoyer == msg_len) dernier_paquet = true;
         else dernier_paquet = false;
 
         // Détermine le caractère urgent à utiliser pour ce paquet
@@ -76,49 +76,56 @@ void envoyer_paquets(int localsack, char * msg, char * token, char * destinatair
 
         // Ajoute le contenu au paquet
         memset(paquet + current_octet, 0, CONTENT_SIZE);
-        memcpy(paquet + current_octet, msg + nb_bits_envoyes, nb_bits_a_envoyer);
+        memcpy(paquet + current_octet, msg + nb_octets_envoyes, nb_octets_a_envoyer);
         current_octet += CONTENT_SIZE;
 
         // Envoi le paquet
-        cc = send(localsack, paquet, current_octet, 0);
+        cc = send(localsock, paquet, current_octet, 0);
         if(cc == -1) FATAL("send");
-        nb_bits_envoyes += nb_bits_a_envoyer;
+        nb_octets_envoyes += nb_octets_a_envoyer;
 
     }
 
 }
 
-// Envoyer un message à une machine destination
-void emettre(char * msg, int localsack, struct sockaddr_un * pserv, char * destinataire) {
-
-    printf("Émission d'un message\n");    // Debugging pour tester les commandes via le shell
+// Demande le token au Driver et le récupère, puis envoie le ou les paquet(s) en fonction de la taille du message
+static void _envoyer(int localsock, const char * msg, const char * destinataire) {
 
     int cc;
     char token[TOKEN_SIZE];
 
     // Comm demande le token au Driver en envoyant avec le caractère urgent 'n'
-    cc = send(localsack, "n", 1, 0);
+    cc = send(localsock, "n", 1, 0);
     if(cc == -1) FATAL("send");
 
     // Réception du token envoyé par le Driver
-    cc = recv(localsack, token, TOKEN_SIZE, 0);
+    cc = recv(localsock, token, TOKEN_SIZE, 0);
     if(cc == -1) FATAL("recv");
 
     // Fabrication des paquets et les envoie au Driver avec le caractère urgent 'u'
     // Le dernier paquet envoyé aura lui le caractère urgent 'e' pour spécifier la fin de l'émission
-    envoyer_paquets(localsack, msg, token, destinataire);
+    _envoyer_paquets(localsock, msg, token, destinataire);
+
+}
+
+// Envoyer un message à une machine destination
+void emettre(const char * msg, int localsock, struct sockaddr_un * serv, const char * destinataire) {
+
+    _envoyer(localsock, msg, destinataire);
+    printf("Le message %s a bien été envoyé à %s !\n", msg, destinataire);
 
 }
 
 // Diffuser un message à toutes les machines de l'anneau
-void diffuser(char * msg, int localsack, struct sockaddr_un * pserv) {
+void diffuser(const char * msg, int localsock, struct sockaddr_un * serv) {
 
-    printf("Diffusion d'un message\n");    // Debugging pour tester les commandes via le shell
+    _envoyer(localsock, msg, BROADCAST_ADDR);
+    printf("Le message %s a bien été diffusé à toutes les machines connectées à l'anneau !\n", msg);
 
 }
 
 // Permet l'envoie ou la réception d'un fichier (binaire ou ASCII) entre deux machines
-void transferer_fichier(char * fichier, char * destinataire, int localsack, struct sockaddr_un * pserv) {
+void transferer_fichier(const char * fichier, const char * destinataire, int localsock, struct sockaddr_un * serv) {
 
     printf("Transfert de fichier\n");    // Debugging pour tester les commandes via le shell
 
@@ -132,7 +139,7 @@ void recuperer() {
 }
 
 // Détermine la commande entrée par l'utilisateur et exécute l'action correspondante
-void commande(char * commande, int localsack, struct sockaddr_un * pserv) {
+void commande(char * commande, int localsock, struct sockaddr_un * serv) {
 
     char * command = strtok(commande, " ");
 
@@ -152,8 +159,8 @@ void commande(char * commande, int localsack, struct sockaddr_un * pserv) {
             return;
         }
 
-        if(destinataire != NULL) emettre(msg, localsack, pserv, destinataire);    // Envoyer le message à une machine du réseau
-        else diffuser(msg, localsack, pserv); // Envoyer le message à toutes les machines du réseau
+        if(destinataire != NULL) emettre(msg, localsock, serv, destinataire);    // Envoyer le message à une machine du réseau
+        else diffuser(msg, localsock, serv); // Envoyer le message à toutes les machines du réseau
 
     }
 
@@ -168,7 +175,7 @@ void commande(char * commande, int localsack, struct sockaddr_un * pserv) {
             return; 
         }
 
-        transferer_fichier(fichier, destinataire, localsack, pserv);
+        transferer_fichier(fichier, destinataire, localsock, serv);
 
     }
 
@@ -179,7 +186,7 @@ void commande(char * commande, int localsack, struct sockaddr_un * pserv) {
 }  
 
 // Menu permettant à l'utilisateur d'utiliser les fonctions
-void comm(int localsack, struct sockaddr_un * pserv) {
+void comm(int localsock, struct sockaddr_un * serv) {
 
     char msg[SMAX];
 
@@ -191,7 +198,7 @@ void comm(int localsack, struct sockaddr_un * pserv) {
         if(fgets(msg, SMAX, stdin) == NULL) break;
         msg[strcspn(msg, "\n")] = '\0';  // Retire le \n à la fin de la commande
 
-        commande(msg, localsack, pserv);    // Détermine la commande entrée par l'utilisateur et exécute l'action correspondante
+        commande(msg, localsock, serv);    // Détermine la commande entrée par l'utilisateur et exécute l'action correspondante
 
     }
 
