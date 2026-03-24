@@ -5,6 +5,7 @@
 #include <arpa/inet.h>
 #include <sys/socket.h>
 #include <unistd.h>
+#include <stdbool.h>
 
 #include "../common/config.h"
 #include "../common/error.h"
@@ -24,52 +25,100 @@ void help() {
 }
 
 // Construit le paquet et l'envoie au Driver pour le faire circuler dans l'anneau jusqu'au destinataire
-void envoyer_paquets(int sack, char * msg, char * token, char * destinataire) {
+void envoyer_paquets(int localsack, char * msg, char * token, char * destinataire) {
 
-    // 1. Envoyer le caractère urgent 'u' sauf pour le dernier paquet envoyé ou ce sera le caractère urgent 'e' qui sera utilisé
+    int cc;
+    int msg_len = strlen(msg);
+    int nb_bits_envoyes = 0;
+    struct in_addr addr;
 
-    // 2. Envoyer le token
+    // Récupération de l'adresse IP de la machine destinaire si le hostname a été passé en paramètre à la place de l'adresse IP
+    // inet_pton retourne 1 si la conversion a réussi, sinon on tente gethostbyname
+    if(inet_pton(AF_INET, destinataire, &addr) != 1) {
+        struct hostent * hp = gethostbyname(destinataire);
+        if(hp == NULL) FATAL("gethostbyname");
+        memcpy(&addr, hp->h_addr, hp->h_length);
+        // hp->h_addr = hp->h_addr_list[0]
+    }
 
-    // 3. Envoyer l'adresse IP du destinataire 
-    // La récupérer via la fonction gethostbyname() si le nom de l'hôte a été fourni à la place
+    // Envoyer des paquets tant qu'il reste du contenu à envoyer car il faut gérer le cas où la taille du contenu est supérieur à 256
+    while(nb_bits_envoyes < msg_len) {
 
-    // 4. Envoyer le contenu
+        int nb_bits_a_envoyer, current_octet;
+        bool dernier_paquet;
+        char urgent;
+        char paquet[URGENT_SIZE + TOKEN_SIZE + ADDR_SIZE + CONTENT_SIZE];   // 1 + 4 + 4 + 32 = 41 octets (taille d'un paquet)
+
+        // Calcul du nombre de bits à envoyer dans ce paquet
+        nb_bits_a_envoyer = msg_len - nb_bits_envoyes;
+        if(nb_bits_a_envoyer > CONTENT_SIZE) nb_bits_a_envoyer = CONTENT_SIZE;  // S'assure que la partie message du paquet ne dépasse pas 256 bits
+
+        // Détermine si ce paquet sera le dernier envoyé ou pas
+        if(nb_bits_envoyes + nb_bits_a_envoyer == msg_len) dernier_paquet = true;
+        else dernier_paquet = false;
+
+        // Détermine le caractère urgent à utiliser pour ce paquet
+        if(dernier_paquet) urgent = 'e';
+        else urgent = 'u';
+
+        // Ajoute le caractère urgent au paquet
+        current_octet = 0;
+        paquet[current_octet] = urgent;
+        current_octet += URGENT_SIZE;
+
+        // Ajoute le token au paquet
+        memcpy(paquet + current_octet, token, TOKEN_SIZE);
+        current_octet += TOKEN_SIZE;
+
+        // Ajoute l'adresse IP du destinataire au paquet
+        memcpy(paquet + current_octet, &addr.s_addr, ADDR_SIZE);
+        current_octet += ADDR_SIZE;
+
+        // Ajoute le contenu au paquet
+        memset(paquet + current_octet, 0, CONTENT_SIZE);
+        memcpy(paquet + current_octet, msg + nb_bits_envoyes, nb_bits_a_envoyer);
+        current_octet += CONTENT_SIZE;
+
+        // Envoi le paquet
+        cc = send(localsack, paquet, current_octet, 0);
+        if(cc == -1) FATAL("send");
+        nb_bits_envoyes += nb_bits_a_envoyer;
+
+    }
 
 }
 
 // Envoyer un message à une machine destination
-void emettre(char * msg, int sack, struct sockaddr_un * pserv, char * destinataire) {
+void emettre(char * msg, int localsack, struct sockaddr_un * pserv, char * destinataire) {
 
     printf("Émission d'un message\n");    // Debugging pour tester les commandes via le shell
 
     int cc;
     char token[TOKEN_SIZE];
-    socklen_t lg;
 
     // Comm demande le token au Driver en envoyant avec le caractère urgent 'n'
-    cc = send(sack, "n", 1, 0);
+    cc = send(localsack, "n", 1, 0);
     if(cc == -1) FATAL("send");
 
     // Réception du token envoyé par le Driver
-    lg = sizeof(* pserv);
-    cc = recvfrom(sack, token, TOKEN_SIZE, 0, (struct sockaddr *) pserv, &lg);  // Attend la réponse = le token
-    if(cc == -1) FATAL("recvfrom");
+    cc = recv(localsack, token, TOKEN_SIZE, 0);
+    if(cc == -1) FATAL("recv");
 
     // Fabrication des paquets et les envoie au Driver avec le caractère urgent 'u'
     // Le dernier paquet envoyé aura lui le caractère urgent 'e' pour spécifier la fin de l'émission
-    envoyer_paquets(sack, msg, token, destinataire);
+    envoyer_paquets(localsack, msg, token, destinataire);
 
 }
 
 // Diffuser un message à toutes les machines de l'anneau
-void diffuser() {
+void diffuser(char * msg, int localsack, struct sockaddr_un * pserv) {
 
     printf("Diffusion d'un message\n");    // Debugging pour tester les commandes via le shell
 
 }
 
 // Permet l'envoie ou la réception d'un fichier (binaire ou ASCII) entre deux machines
-void transferer_fichier() {
+void transferer_fichier(char * fichier, char * destinataire, int localsack, struct sockaddr_un * pserv) {
 
     printf("Transfert de fichier\n");    // Debugging pour tester les commandes via le shell
 
@@ -88,13 +137,14 @@ void commande(char * commande, int localsack, struct sockaddr_un * pserv) {
     char * command = strtok(commande, " ");
 
     if(strcmp(command, "exit") == 0 || strcmp(command, "quit") == 0) exit(0); // Arrêter le programme via une commande sans utiliser CTRL + C
+
     else if(strcmp(command, "help") == 0) help();
 
     else if(strcmp(command, "echo") == 0) {
 
         // Récupération des paramètres de la commande
         char * msg = strtok(NULL, " ");  // Message à envoyer
-        char * destinataire = strtok(NULL, " ");    // Adresse IP / Nom de la machine si l'utilisateur / Sinon broadcast à tout le réseau
+        char * destinataire = strtok(NULL, " ");    // Adresse IP ou nom de la machine si l'utilisateur / Sinon broadcast à tout le réseau
 
         // Vérifie la syntaxe de la commande
         if(msg == NULL) { 
@@ -123,6 +173,7 @@ void commande(char * commande, int localsack, struct sockaddr_un * pserv) {
     }
 
     else if(strcmp(command, "hosts") == 0) recuperer();
+
     else printf("Commande introuvable\n");
 
 }  

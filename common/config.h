@@ -4,9 +4,24 @@
 #define SMAX 64
 
 /**
- * Taille du token (en bytes)
+ * Taille du caractère urgent (en octet)
+*/
+#define URGENT_SIZE 1   // 8 bits
+
+/**
+ * Taille du token (en octets)
  */
-#define TOKEN_SIZE 4
+#define TOKEN_SIZE 4    // 32 bits
+
+/**
+ * Taille du token (en octets)
+ */
+#define ADDR_SIZE 4     // 32 bits
+
+/**
+ * Taille du contenu (en octets)
+ */
+#define CONTENT_SIZE 32 // 256 bits, donc 32 octets car 256 / 8 (car 1 octet = 8 bytes) = 32
 
 /**
  * Port utilisé par le protocole
