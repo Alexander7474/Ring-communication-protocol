@@ -24,12 +24,9 @@ void help() {
 
 }
 
-// Construit le paquet et l'envoie au Driver pour le faire circuler dans l'anneau jusqu'au destinataire
-static void _envoyer_paquets(int localsock, const char * msg, const char * token, const char * destinataire) {
+// Retourne l'adresse IP du destinataire pour gérer le cas où l'utilisateur renseigne le hostname de la machine destinataire
+static struct in_addr _resoudre_destinataire(const char * destinataire) {
 
-    int cc;
-    int msg_len = strlen(msg);
-    int nb_octets_envoyes = 0;
     struct in_addr addr;
 
     // Récupération de l'adresse IP de la machine destinataire si le hostname a été passé en paramètre à la place de l'adresse IP
@@ -41,13 +38,50 @@ static void _envoyer_paquets(int localsock, const char * msg, const char * token
         // hp->h_addr = hp->h_addr_list[0]
     }
 
+    return addr;
+
+}
+
+// Construit le paquet contenant le caractère urgent, le token, l'adresse IP du destinataire et le contenu
+static void _construire_paquet(char * paquet, char urgent, const char * token, struct in_addr addr, const char * contenu, int nb_octets) {
+    
+    int current_octet = 0;
+
+    // Ajoute le caractère urgent au paquet
+    paquet[current_octet] = urgent;
+    current_octet += URGENT_SIZE;
+
+    // Ajoute le token au paquet
+    memcpy(paquet + current_octet, token, TOKEN_SIZE);
+    current_octet += TOKEN_SIZE;
+
+    // Ajoute l'adresse IP du destinataire au paquet
+    memcpy(paquet + current_octet, &addr.s_addr, ADDR_SIZE);
+    current_octet += ADDR_SIZE;
+
+    // Ajoute le contenu au paquet
+    memset(paquet + current_octet, 0, CONTENT_SIZE);
+    memcpy(paquet + current_octet, contenu, nb_octets);
+
+}
+
+// Construit le paquet et l'envoie au Driver pour le faire circuler dans l'anneau jusqu'au destinataire
+static void _envoyer_paquets(int localsock, const char * msg, const char * token, const char * destinataire) {
+
+    int cc;
+    int msg_len = strlen(msg);
+    int nb_octets_envoyes = 0;
+    struct in_addr addr;
+
+    addr = _resoudre_destinataire(destinataire);
+
     // Envoyer des paquets tant qu'il reste du contenu à envoyer car il faut gérer le cas où la taille du contenu est supérieur à 256
     while(nb_octets_envoyes < msg_len) {
 
-        int nb_octets_a_envoyer, current_octet;
+        int nb_octets_a_envoyer;
         bool dernier_paquet;
         char urgent;
-        char paquet[URGENT_SIZE + TOKEN_SIZE + ADDR_SIZE + CONTENT_SIZE];   // 1 + 4 + 4 + 32 = 41 octets (taille d'un paquet)
+        char paquet[PACKET_SIZE];   // 1 + 4 + 4 + 32 = 41 octets (taille d'un paquet)
 
         // Calcul du nombre de bits à envoyer dans ce paquet
         nb_octets_a_envoyer = msg_len - nb_octets_envoyes;
@@ -61,26 +95,10 @@ static void _envoyer_paquets(int localsock, const char * msg, const char * token
         if(dernier_paquet) urgent = 'e';
         else urgent = 'u';
 
-        // Ajoute le caractère urgent au paquet
-        current_octet = 0;
-        paquet[current_octet] = urgent;
-        current_octet += URGENT_SIZE;
-
-        // Ajoute le token au paquet
-        memcpy(paquet + current_octet, token, TOKEN_SIZE);
-        current_octet += TOKEN_SIZE;
-
-        // Ajoute l'adresse IP du destinataire au paquet
-        memcpy(paquet + current_octet, &addr.s_addr, ADDR_SIZE);
-        current_octet += ADDR_SIZE;
-
-        // Ajoute le contenu au paquet
-        memset(paquet + current_octet, 0, CONTENT_SIZE);
-        memcpy(paquet + current_octet, msg + nb_octets_envoyes, nb_octets_a_envoyer);
-        current_octet += CONTENT_SIZE;
+        _construire_paquet(paquet, urgent, token, addr, msg + nb_octets_envoyes, nb_octets_a_envoyer);
 
         // Envoi le paquet
-        cc = send(localsock, paquet, current_octet, 0);
+        cc = send(localsock, paquet, PACKET_SIZE, 0);
         if(cc == -1) FATAL("send");
         nb_octets_envoyes += nb_octets_a_envoyer;
 
@@ -88,11 +106,10 @@ static void _envoyer_paquets(int localsock, const char * msg, const char * token
 
 }
 
-// Demande le token au Driver et le récupère, puis envoie le ou les paquet(s) en fonction de la taille du message
-static void _envoyer(int localsock, const char * msg, const char * destinataire) {
+// Envoi une demande au Driver pour récupérer le Token et le retourne
+static void _recuperer_token(int localsock, char * token) {
 
     int cc;
-    char token[TOKEN_SIZE];
 
     // Comm demande le token au Driver en envoyant avec le caractère urgent 'n'
     cc = send(localsock, "n", 1, 0);
@@ -101,6 +118,15 @@ static void _envoyer(int localsock, const char * msg, const char * destinataire)
     // Réception du token envoyé par le Driver
     cc = recv(localsock, token, TOKEN_SIZE, 0);
     if(cc == -1) FATAL("recv");
+
+}
+
+// Demande le token au Driver et le récupère, puis envoie le ou les paquet(s) en fonction de la taille du message
+static void _envoyer(int localsock, const char * msg, const char * destinataire) {
+
+    char token[TOKEN_SIZE];
+
+    _recuperer_token(localsock, token);    // Envoi une demande au Driver pour récupérer le Token qui le retourne
 
     // Fabrication des paquets et les envoie au Driver avec le caractère urgent 'u'
     // Le dernier paquet envoyé aura lui le caractère urgent 'e' pour spécifier la fin de l'émission
@@ -127,7 +153,44 @@ void diffuser(const char * msg, int localsock, struct sockaddr_un * serv) {
 // Permet l'envoie ou la réception d'un fichier (binaire ou ASCII) entre deux machines
 void transferer_fichier(const char * fichier, const char * destinataire, int localsock, struct sockaddr_un * serv) {
 
-    printf("Transfert de fichier\n");    // Debugging pour tester les commandes via le shell
+    int cc, nb_octets_lus;
+    char token[TOKEN_SIZE], contenu[CONTENT_SIZE];
+    FILE * file;
+    struct in_addr addr;
+
+    // Ouverture du fichier en mode lecture
+    file = fopen(fichier, "r");
+    if(file == NULL) FATAL("fopen");
+
+    addr = _resoudre_destinataire(destinataire);    // Récupère l'adresse IP du destinataire pour gérer le cas où l'utilisateur renseigne le hostname de la machine destinataire  
+
+    _recuperer_token(localsock, token);    // Envoi une demande au Driver pour récupérer le Token qui le retourne
+
+    // Lecture du fichier par tranche de 256 octets 
+    while((nb_octets_lus = fread(contenu, 1, CONTENT_SIZE, file)) > 0) {
+
+        bool dernier_paquet;
+        char urgent;
+        char paquet[PACKET_SIZE];
+
+        // Détermine si ce paquet sera le dernier envoyé ou pas car nous avons atteint la fin du fichier
+        if(nb_octets_lus < CONTENT_SIZE) dernier_paquet = true;
+        else dernier_paquet = false;
+
+        // Détermine le caractère urgent à utiliser pour ce paquet
+        if(dernier_paquet) urgent = 'e';
+        else urgent = 'u';
+
+        _construire_paquet(paquet, urgent, token, addr, contenu, nb_octets_lus);
+
+        // Envoi le paquet
+        cc = send(localsock, paquet, PACKET_SIZE, 0);
+        if(cc == -1) FATAL("send");
+
+    }
+
+    fclose(file);
+    printf("Le fichier %s a bien été envoyé à %s !\n", fichier, destinataire);
 
 }
 
