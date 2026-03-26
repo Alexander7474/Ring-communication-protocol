@@ -125,9 +125,7 @@ int main (int argc, char *argv[])
                         char token[TOKEN_SIZE+1];
                         memcpy(token, recv_buffer, TOKEN_SIZE);
                         token[TOKEN_SIZE] = '\0';
-                        int value = (int)strtol(token, NULL, 16);
-                        value++;
-                        snprintf(token, sizeof(token), TOKEN_FMT, value);  // uppercase, zero-padded to 8 chars
+                        increment_token(&token);
                         memcpy(send_buffer, token, TOKEN_SIZE); 
                         printf("Envoie: %s\n", send_buffer);
                         send_sockg(sockg, send_buffer);

@@ -9,4 +9,6 @@ void receiv_sockd(int sock, char *msg);
 
 void generate_token(char *buffer);
 
+void increment_token(char *buffer);
+
 #endif // !DRIVER_H

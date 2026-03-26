@@ -25,3 +25,8 @@ void generate_token(char *buffer){
         memcpy(buffer, token, TOKEN_SIZE);
 }
 
+void increment_token(char *token){
+        int value = (int)strtol(token, NULL, 16);
+        value++;
+        snprintf(token, sizeof(char)*TOKEN_SIZE+1, TOKEN_FMT, value);  // uppercase, zero-padded to 8 chars
+}
