@@ -1,3 +1,6 @@
+#ifndef CONFIG_H 
+#define CONFIG_H
+
 /**
  * Taille max d'un message 
 */
@@ -29,6 +32,16 @@
 #define PACKET_SIZE (URGENT_SIZE + TOKEN_SIZE + ADDR_SIZE + CONTENT_SIZE)   // 1 + 4 + 4 + 32 = 41 octets (taille d'un paquet)
 
 /**
+* Taille de la file d'attente d'hosts
+ */
+#define WAITING_HOST_MAX 32
+
+/**
+ * Taille du token (en bytes)
+ */
+#define TOKEN_SIZE 4
+
+/**
  * Port utilisé par le protocole
 */
 #define PORT 4444
@@ -47,3 +60,5 @@
  * Chemin où stocker la socket Unix qui est un fichier local
 */
 #define UNIX_SOCKET_PATH "/tmp/localsock.sock"
+
+#endif

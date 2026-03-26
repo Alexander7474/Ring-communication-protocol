@@ -24,3 +24,4 @@ void generate_token(char *buffer){
         char token[TOKEN_SIZE+1] = "00000000";
         memcpy(buffer, token, TOKEN_SIZE);
 }
+

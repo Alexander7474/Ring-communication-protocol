@@ -8,6 +8,7 @@
 
 #include "driver.h"
 #include "../common/config.h"
+#include "../common/ring_buffer.h"
 #include "../common/error.h"
 
 // server qui se parle a lui meme avec son fils (bizarre)
@@ -21,6 +22,8 @@ int main (int argc, char *argv[])
         int sockd = 0;
         int sockg = 0;
         struct sockaddr_in servd;
+
+        struct ring_buffer waiting_hosts;
 
         servd.sin_family = AF_INET;  // On nous demandait d'utiliser le domaine Internet
         servd.sin_port = htons(PORT);    // htons(PORT) pour convertir le numéro de port
@@ -63,9 +66,15 @@ int main (int argc, char *argv[])
                         FATAL("activity");
 
                 if(FD_ISSET(newsockd, &readfds)){
-                        int lenpservd = sizeof(servd);
-                        sockd = accept(newsockd, (struct sockaddr *)&servd, (socklen_t *) &lenpservd);
                         printf("Sockd nouvelle connection !\n");
+                        int lenpservd = sizeof(servd);
+
+                        if(sockd > 0){
+                                int tmp_socket = accept(newsockd, (struct sockaddr *)&servd, (socklen_t *) &lenpservd);
+                                push_rg_buff(&waiting_hosts, tmp_socket);
+                        }else{
+                                sockd = accept(newsockd, (struct sockaddr *)&servd, (socklen_t *) &lenpservd);
+                        }
                 }
 
 
@@ -98,6 +107,8 @@ int main (int argc, char *argv[])
                         printf("Client prêt !\n");
                 }
 
+                // traitement des données reçu 
+                // si token libre -> Check new hosts FILE -> sinon check besoin du comm -> sinon faire passer
                 if(data_recv){
                         char token[TOKEN_SIZE+1];
                         memcpy(token, recv_buffer, TOKEN_SIZE); // extraction du token dans le message
