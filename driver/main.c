@@ -13,12 +13,12 @@
 // server qui se parle a lui meme avec son fils (bizarre)
 int main (int argc, char *argv[])
 {
-        if(argc != 2) FATAL("Nombre d'arguments incorrect.\n Usage: ./driver address");
+        if(argc != 2) FATAL("Nombre d'arguments incorrect.\nUsage: ./driver address");
  
         char recv_buffer[SMAX];
         char send_buffer[SMAX];
-        int cc, sockd, max_sd;
-        int newsockd = 0;
+        int cc, newsockd, max_sd;
+        int sockd = 0;
         int sockg = 0;
         struct sockaddr_in servd;
 
@@ -27,14 +27,14 @@ int main (int argc, char *argv[])
         // hp->h_addr = hp->h_addr_list[0]
         servd.sin_addr.s_addr = htonl(INADDR_ANY);
 
-        sockd = socket(AF_INET, SOCK_STREAM, 0);  // Création de la socket
+        newsockd = socket(AF_INET, SOCK_STREAM, 0);  // Création de la socket
 
         int opt = 1;
-        setsockopt(sockd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt));
-        cc = bind(sockd, (struct sockaddr *) &servd, sizeof(servd));
+        setsockopt(newsockd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt));
+        cc = bind(newsockd, (struct sockaddr *) &servd, sizeof(servd));
         if(cc == -1) FATAL("bind"); // Erreur à l'attachement
 
-        cc = listen(sockd, 5);
+        cc = listen(newsockd, 5);
         if(cc == -1) FATAL("listen");
 
         fd_set readfds;
@@ -42,16 +42,16 @@ int main (int argc, char *argv[])
                 int data_recv = 0;
 
                 FD_ZERO(&readfds);
-                FD_SET(sockd, &readfds);
-                max_sd = sockd;
+                FD_SET(newsockd, &readfds);
+                max_sd = newsockd;
 
-                if(newsockd>0)
-                        FD_SET(newsockd, &readfds);
+                if(sockd>0)
+                        FD_SET(sockd, &readfds);
                 else 
                         printf("Aucun client connécté\n");
 
-                if(newsockd>sockd)
-                        max_sd = newsockd;
+                if(sockd>newsockd)
+                        max_sd = sockd;
 
                 struct timeval timeout;
                 timeout.tv_sec = 1;
@@ -62,15 +62,15 @@ int main (int argc, char *argv[])
                 if(activity < 0)
                         FATAL("activity");
 
-                if(FD_ISSET(sockd, &readfds)){
+                if(FD_ISSET(newsockd, &readfds)){
                         int lenpservd = sizeof(servd);
-                        newsockd = accept(sockd, (struct sockaddr *)&servd, (socklen_t *) &lenpservd);
+                        sockd = accept(newsockd, (struct sockaddr *)&servd, (socklen_t *) &lenpservd);
                         printf("Sockd nouvelle connection !\n");
                 }
 
 
-                if(FD_ISSET(newsockd, &readfds)){
-                        receiv_sockd(newsockd, recv_buffer);
+                if(FD_ISSET(sockd, &readfds)){
+                        receiv_sockd(sockd, recv_buffer);
                         printf("Message recu: %s\n", recv_buffer);
                         data_recv = 1;
                 }else{ // si l'on ne recoit rien depuis MAX_WAIT, on regénére un token
