@@ -5,6 +5,7 @@
 #include <arpa/inet.h>
 #include <sys/socket.h>
 #include <unistd.h>
+#include <time.h>
 
 #include "driver.h"
 #include "../common/config.h"
@@ -19,11 +20,17 @@ int main (int argc, char *argv[])
         char recv_buffer[SMAX];
         char send_buffer[SMAX];
         int cc, newsockd, max_sd;
+        struct sockaddr_in servd;
+        
         int sockd = 0;
         int sockg = 0;
-        struct sockaddr_in servd;
 
         struct ring_buffer waiting_hosts;
+
+        // gestion du temps
+        struct timespec last_recv;
+        struct timespec actual_time;
+        clock_gettime(CLOCK_MONOTONIC, &last_recv);
 
         servd.sin_family = AF_INET;  // On nous demandait d'utiliser le domaine Internet
         servd.sin_port = htons(PORT);    // htons(PORT) pour convertir le numéro de port
@@ -56,9 +63,7 @@ int main (int argc, char *argv[])
                 if(sockd>newsockd)
                         max_sd = sockd;
 
-                struct timeval timeout;
-                timeout.tv_sec = 1;
-                timeout.tv_usec = 0;
+                struct timeval timeout = {0, 100000};
 
                 int activity = select(max_sd+1, &readfds, NULL, NULL, &timeout);
 
@@ -82,8 +87,15 @@ int main (int argc, char *argv[])
                         receiv_sockd(sockd, recv_buffer);
                         printf("Message recu: %s\n", recv_buffer);
                         data_recv = 1;
-                }else{ // si l'on ne recoit rien depuis MAX_WAIT, on regénére un token
+                        clock_gettime(CLOCK_MONOTONIC, &last_recv);
+                }
+
+                clock_gettime(CLOCK_MONOTONIC, &actual_time);
+                if(last_recv.tv_sec < actual_time.tv_sec - MAX_WAIT){ 
                         generate_token(send_buffer);
+                        clock_gettime(CLOCK_MONOTONIC, &last_recv);
+                        printf("Token regénéré\n");
+                        send_sockg(sockg, send_buffer);
                 }
 
                 // connection de sockg
@@ -116,10 +128,9 @@ int main (int argc, char *argv[])
                         value++;
                         snprintf(token, sizeof(token), "%08X", value);  // uppercase, zero-padded to 8 chars
                         memcpy(send_buffer, token, TOKEN_SIZE); 
+                        printf("Envoie: %s\n", send_buffer);
+                        send_sockg(sockg, send_buffer);
                 } 
-                
-                printf("Envoie: %s\n", send_buffer);
-                send_sockg(sockg, send_buffer);
         }
         
         close(sockd);
