@@ -21,7 +21,7 @@ void receiv_sockd(int sock, char *msg)  {
 }
 
 void generate_token(char *buffer){
-        char token[TOKEN_SIZE+1] = "00000000";
+        char token[TOKEN_SIZE+1] = {'0'};
         memcpy(buffer, token, TOKEN_SIZE);
 }
 

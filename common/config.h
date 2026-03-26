@@ -39,7 +39,12 @@
 /**
  * Taille du token (en bytes)
  */
-#define TOKEN_SIZE 4
+#define TOKEN_SIZE 8
+
+/* builds "%08X" from TOKEN_SIZE at compile time */
+#define TOKEN_FMT "%0" STRINGIFY(TOKEN_SIZE) "X"
+#define STRINGIFY(x) STR(x)
+#define STR(x) #x
 
 /**
  * Port utilisé par le protocole

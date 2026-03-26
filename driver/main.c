@@ -123,10 +123,11 @@ int main (int argc, char *argv[])
                 // si token libre -> Check new hosts FILE -> sinon check besoin du comm -> sinon faire passer
                 if(data_recv){
                         char token[TOKEN_SIZE+1];
-                        memcpy(token, recv_buffer, TOKEN_SIZE); // extraction du token dans le message
+                        memcpy(token, recv_buffer, TOKEN_SIZE);
+                        token[TOKEN_SIZE] = '\0';
                         int value = (int)strtol(token, NULL, 16);
                         value++;
-                        snprintf(token, sizeof(token), "%08X", value);  // uppercase, zero-padded to 8 chars
+                        snprintf(token, sizeof(token), TOKEN_FMT, value);  // uppercase, zero-padded to 8 chars
                         memcpy(send_buffer, token, TOKEN_SIZE); 
                         printf("Envoie: %s\n", send_buffer);
                         send_sockg(sockg, send_buffer);
