@@ -4,6 +4,18 @@
 #include "config.h"
 
 /**
+ * rg_buff_set - Met in ring_buffer à zero
+ * @buffer: pointeur vers le ring_buffer
+ */
+void rg_buff_set(struct ring_buffer* buffer)
+{
+        for(unsigned int i = 0; i < WAITING_HOST_MAX; i++)
+                buffer->socket[i] = -1;
+        buffer->write_head = 0;
+        buffer->read_head = 0;
+}
+
+/**
  * push_rg_buff - Push un socket dans un struct ring_buffer
  * @buffer: pointeur vers le struct ring_buffer
  * @i: socket file descriptor 
@@ -27,7 +39,7 @@ int push_rg_buff(struct ring_buffer* buffer, int i)
  * @buffer: pointeur vers le struct ring_buffer
  * @i: socket de sortie, si la function à réussie
  *
- * Return: 0 si ok, -1 si le struct ring_buffer est vide
+ * Return: 0 si ok, -1 si le @buffer est vide
  */
 int pop_rg_buff(struct ring_buffer* buffer, int* i)
 {
@@ -40,11 +52,11 @@ int pop_rg_buff(struct ring_buffer* buffer, int* i)
 }
 
 /**
- * pop_rg_buff - Lis un socket dans un struct ring_buffer
+ * read_rg_buff - Lit un socket dans un struct ring_buffer
  * @buffer: pointeur vers le struct ring_buffer
  * @i: socket de sortie, si la function à réussie
  *
- * Return: 0 si ok, -1 si le struct ring_buffer est vide
+ * Return: 0 si ok, -1 si le @buffer est vide
  */
 int read_rg_buff(struct ring_buffer* buffer, int* i)
 {
@@ -55,6 +67,12 @@ int read_rg_buff(struct ring_buffer* buffer, int* i)
     return 0;
 }
 
+/**
+ * is_rg_buffer_full - Détérmine si un ring_buffer est full
+ * @buffer: pointeur vers le ring_buffer
+ *
+ * Return: 1 si full, 0 si non
+ */
 int is_rg_buff_full(struct ring_buffer* buffer)
 {
         if (buffer->read_head == buffer->write_head)
@@ -62,3 +80,17 @@ int is_rg_buff_full(struct ring_buffer* buffer)
 
         return 0;
 }
+
+/**
+ * rg_buff_size - Cacule le nombre de socket dans un ring_buffer
+ * @buffer: pointeur vers le ring_buffer
+ *
+ * Return: Nombre de socket(s) dans @buffer
+ */
+int rg_buff_size(struct ring_buffer* buffer)
+{
+        if(buffer->read_head > buffer->write_head)
+                return buffer->write_head + (WAITING_HOST_MAX - buffer->read_head);
+        return buffer->write_head - buffer->read_head;
+}
+

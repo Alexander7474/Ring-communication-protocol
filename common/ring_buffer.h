@@ -9,6 +9,9 @@ struct ring_buffer{
         int write_head;
 };
 
+/* set ring_buffer to 0 */
+void rg_buff_set(struct ring_buffer* buffer);
+
 /* Push a socket fd into the ring buffer. Returns 0 or -1 if full. */
 int push_rg_buff(struct ring_buffer* buffer, int i);
 
@@ -20,5 +23,8 @@ int read_rg_buff(struct ring_buffer* buffer, int* i);
 
 /* Returns 1 if empty, 0 if not */
 int is_rg_buff_empty(struct ring_buffer* buffer);
+
+/* Returns size of ring_buffer */
+int rg_buff_size(struct ring_buffer* buffer);
 
 #endif // !RING_BUFFER_H

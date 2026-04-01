@@ -26,6 +26,7 @@ int main (int argc, char *argv[])
         int sockg = 0;
 
         struct ring_buffer waiting_hosts;
+        rg_buff_set(&waiting_hosts);
 
         // gestion du temps
         struct timespec last_recv;
@@ -127,6 +128,11 @@ int main (int argc, char *argv[])
                         send_sockg(sockg, send_buffer);
                 } 
 
+#ifdef DEBUG
+                printf("Debug start ----------------\n");
+                printf("Taille ring_buffer: %d\n", rg_buff_size(&waiting_hosts));
+                printf("Debug end ------------------\n");
+#endif
 #ifdef SLOW_MODE
                 sleep(1);
 #endif
