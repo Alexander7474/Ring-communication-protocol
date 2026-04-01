@@ -63,7 +63,7 @@ int main (int argc, char *argv[])
                 if(sockd>newsockd)
                         max_sd = sockd;
 
-                struct timeval timeout = {0, 100000};
+                struct timeval timeout = {1, 0};
 
                 int activity = select(max_sd+1, &readfds, NULL, NULL, &timeout);
 
@@ -126,6 +126,11 @@ int main (int argc, char *argv[])
                         dump_message(send_buffer);
                         send_sockg(sockg, send_buffer);
                 } 
+
+#ifdef SLOW_MODE
+                sleep(1);
+#endif
+ 
         }
         
         close(sockd);
