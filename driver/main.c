@@ -85,14 +85,13 @@ int main (int argc, char *argv[])
 
                 if(FD_ISSET(sockd, &readfds)){
                         receiv_sockd(sockd, recv_buffer);
-                        printf("Message recu: %s\n", recv_buffer);
                         data_recv = 1;
                         clock_gettime(CLOCK_MONOTONIC, &last_recv);
                 }
 
                 clock_gettime(CLOCK_MONOTONIC, &actual_time);
                 if(last_recv.tv_sec < actual_time.tv_sec - MAX_WAIT){ 
-                        generate_token(send_buffer);
+                        generate_message_buffer(send_buffer);
                         clock_gettime(CLOCK_MONOTONIC, &last_recv);
                         printf("Token regénéré\n");
                         send_sockg(sockg, send_buffer);
@@ -122,12 +121,9 @@ int main (int argc, char *argv[])
                 // traitement des données reçu 
                 // si token libre -> Check new hosts FILE -> sinon check besoin du comm -> sinon faire passer
                 if(data_recv){
-                        char token[TOKEN_SIZE+1];
-                        memcpy(token, recv_buffer, TOKEN_SIZE);
-                        token[TOKEN_SIZE] = '\0';
-                        increment_token(&token);
-                        memcpy(send_buffer, token, TOKEN_SIZE); 
-                        printf("Envoie: %s\n", send_buffer);
+                        increment_token(recv_buffer);
+                        memcpy(send_buffer, recv_buffer, SMAX); 
+                        dump_message(send_buffer);
                         send_sockg(sockg, send_buffer);
                 } 
         }

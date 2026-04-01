@@ -2,11 +2,6 @@
 #define CONFIG_H
 
 /**
- * Taille max d'un message 
-*/
-#define SMAX 64
-
-/**
  * Taille du caractère urgent (en octet)
 */
 #define URGENT_SIZE 1   // 8 bits
@@ -39,7 +34,27 @@
 /**
  * Taille du token (en bytes)
  */
-#define TOKEN_SIZE 8
+#define TOKEN_SIZE 4
+
+/**
+ * Taille de l'addresse
+ */
+#define ADDR_SIZE 4
+
+/**
+ * Taille de la zone de données
+ */
+#define DATA_SIZE 64
+
+/**
+ * Taille la zone des drapeaux
+ */
+#define FLAG_SIZE 1
+
+/**
+ * Taill max d'un message 
+ */
+#define SMAX (FLAG_SIZE+TOKEN_SIZE+ADDR_SIZE+DATA_SIZE)
 
 /* builds "%08X" from TOKEN_SIZE at compile time */
 #define TOKEN_FMT "%0" STRINGIFY(TOKEN_SIZE) "X"
