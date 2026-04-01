@@ -33,8 +33,9 @@ int main (int argc, char *argv[])
         struct timespec actual_time;
         clock_gettime(CLOCK_MONOTONIC, &last_recv);
 
-        servd.sin_family = AF_INET;  // On nous demandait d'utiliser le domaine Internet
-        servd.sin_port = htons(PORT);    // htons(PORT) pour convertir le numéro de port
+        // socket d'écoute
+        servd.sin_family = AF_INET;  
+        servd.sin_port = htons(PORT);     
         // hp->h_addr = hp->h_addr_list[0]
         servd.sin_addr.s_addr = htonl(INADDR_ANY);
 
