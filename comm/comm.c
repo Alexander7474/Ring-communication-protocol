@@ -202,8 +202,6 @@ void transferer_fichier(const char * fichier, const char * destinataire, int loc
 // Récupérer les informations concernant toutes les machines du réseau
 void recuperer(int localsock) {
 
-    printf("Récupérer des informations sur les machines du réseau\n");    // Debugging pour tester les commandes via le shell
-
     int cc;
     char token[TOKEN_SIZE];
 
@@ -218,8 +216,6 @@ void recuperer(int localsock) {
 
     cc = send(localsock, paquet, PACKET_SIZE, 0);
     if(cc == -1) FATAL("send");
-
-    printf("Demande d'informations sur les machines connectées à l'anneau envoyée, en attente de réponse...\n");
 
 }
 
@@ -322,7 +318,7 @@ static void _afficher_informations_machines(const char * contenu) {
     // Autres informations à récupérer ?
     hostname[27] = '\0';    // Fin des informations récupérées
 
-    printf("  %-16s %s\n", inet_ntoa(addr), hostname);  // Affichage propre et régulier
+    printf("\r  %-16s %s\n", inet_ntoa(addr), hostname);  // Affichage propre et régulier
 
 }
 
@@ -343,7 +339,7 @@ static void recevoir_paquet(int localsock) {
     }
 
     // Réception d'un paquet concernant les informations sur un hôte de l'anneau
-    if(urgent == 'h') {
+    if(urgent == 'i') {
         _afficher_informations_machines(contenu);
         return;
     }
@@ -367,10 +363,12 @@ void comm(int localsock, struct sockaddr_un * serv) {
 
     char msg[SMAX];
     fd_set readfds;
+    int cc;
 
     while(1) {  // Tant que l'utilisateur ne s'est pas déconnecté = tant que le programme n'a pas été volontairement arrêté
 
-        int cc;
+        printf("comm> ");
+        fflush(stdout); // Nécessaire car sinon le prompt "comm> " n'est pas affiché directement
 
         FD_ZERO(&readfds);
         FD_SET(STDIN_FILENO, &readfds); // Surveille les commandes entrées par l'utilisateur
@@ -382,7 +380,6 @@ void comm(int localsock, struct sockaddr_un * serv) {
 
         // Traitement d'une commande entrée par l'utilisateur
         if(FD_ISSET(STDIN_FILENO, &readfds)) {
-            printf("comm> ");
             if(fgets(msg, SMAX, stdin) == NULL) break;  // Stockage de la commande entrée par l'utilisateur
             msg[strcspn(msg, "\n")] = '\0';  // Retire le \n à la fin de la commande
             commande(msg, localsock, serv);    // Détermine la commande entrée par l'utilisateur et exécute l'action correspondante
