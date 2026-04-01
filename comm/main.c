@@ -28,7 +28,7 @@ int main() {
   conn = connect(localsock, (struct sockaddr *) & serv, sizeof(serv));
   if(conn == -1) FATAL("connect");
 
-  printf("Client prêt !\n");
+  printf("Comm prêt !\n");
   comm(localsock, &serv);
   close(localsock);
 

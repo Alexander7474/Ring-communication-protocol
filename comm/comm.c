@@ -154,7 +154,7 @@ void diffuser(const char * msg, int localsock, struct sockaddr_un * serv) {
 void transferer_fichier(const char * fichier, const char * destinataire, int localsock, struct sockaddr_un * serv) {
 
     int cc, nb_octets_lus;
-    char token[TOKEN_SIZE], contenu[CONTENT_SIZE];
+    char token[TOKEN_SIZE], filename[PACKET_SIZE], contenu[CONTENT_SIZE];
     FILE * file;
     struct in_addr addr;
 
@@ -165,6 +165,11 @@ void transferer_fichier(const char * fichier, const char * destinataire, int loc
     addr = _resoudre_destinataire(destinataire);    // Récupère l'adresse IP du destinataire pour gérer le cas où l'utilisateur renseigne le hostname de la machine destinataire  
 
     _recuperer_token(localsock, token);    // Envoi une demande au Driver pour récupérer le Token qui le retourne
+
+    // Envoi d'un paquet contenant le caractère urgent 'f' spécifiant le nom du fichier
+    _construire_paquet(filename, 'f', token, addr, fichier, strlen(fichier) + 1);
+    cc = send(localsock, filename, PACKET_SIZE, 0);
+    if(cc == -1) FATAL("send");
 
     // Lecture du fichier par tranche de 256 octets 
     while((nb_octets_lus = fread(contenu, 1, CONTENT_SIZE, file)) > 0) {
@@ -195,9 +200,26 @@ void transferer_fichier(const char * fichier, const char * destinataire, int loc
 }
 
 // Récupérer les informations concernant toutes les machines du réseau
-void recuperer() {
+void recuperer(int localsock) {
 
     printf("Récupérer des informations sur les machines du réseau\n");    // Debugging pour tester les commandes via le shell
+
+    int cc;
+    char token[TOKEN_SIZE];
+
+    _recuperer_token(localsock, token);
+
+    // Envoi un paquet contenant le caractère urgent 'h' au Driver pour récupérer les données de toutes les machines connectées à l'anneau
+    char paquet[PACKET_SIZE];
+    struct in_addr broadcast;
+    inet_pton(AF_INET, BROADCAST_ADDR, &broadcast);
+
+    _construire_paquet(paquet, 'h', token, broadcast, "", 0);
+
+    cc = send(localsock, paquet, PACKET_SIZE, 0);
+    if(cc == -1) FATAL("send");
+
+    printf("Demande d'informations sur les machines connectées à l'anneau envoyée, en attente de réponse...\n");
 
 }
 
@@ -242,26 +264,131 @@ void commande(char * commande, int localsock, struct sockaddr_un * serv) {
 
     }
 
-    else if(strcmp(command, "hosts") == 0) recuperer();
+    else if(strcmp(command, "hosts") == 0) recuperer(localsock);
 
     else printf("Commande introuvable\n");
 
 }  
 
+// Lit le paquet envoyé et stocke les données importantes à traiter
+static void _lire_paquet(int localsock, char * urgent, char ** contenu) {
+
+    static char paquet[PACKET_SIZE];
+    int cc;
+
+    // Réception du paquet envoyé envoyé par le Driver au Comm
+    cc = recv(localsock, paquet, PACKET_SIZE, 0);
+    if(cc == -1) FATAL("recv");
+
+    // Les variables sont directement ajustés
+    *urgent = paquet[0];
+    *contenu = paquet + URGENT_SIZE + TOKEN_SIZE + ADDR_SIZE;
+
+}
+
+// Mémorise le nom du fichier à recevoir à partir du contenu d'un paquet 'f'
+static void _recevoir_nom_fichier(const char * contenu, char * filename) {
+
+    strncpy(filename, contenu, CONTENT_SIZE - 1);   // Initialise filename avec le nom du fichier
+    filename[CONTENT_SIZE - 1] = '\0';
+
+}
+
+// Écrit un bloc de données dans le fichier en cours de réception
+static void _recevoir_bloc_fichier(const char * contenu, char urgent, char * filename) {
+
+    // Création du fichier
+    FILE * file = fopen(filename, "ab");
+    if(file == NULL) FATAL("fopen");
+
+    fwrite(contenu, 1, CONTENT_SIZE, file);
+    fclose(file);
+
+    if(urgent == 'e') {
+        printf("Fichier '%s' bien reçu !\n", filename);
+        filename[0] = '\0';  // Remise à zéro pour fin de traitement de ce fichier pour laisser la place à une nouvelle réception de fichier
+    }
+
+}
+
+// Affiche les informations sur une machine connectée à l'anneau
+static void _afficher_informations_machines(const char * contenu) {
+
+    struct in_addr addr;    // Adresse IP de la machine
+    char hostname[28];  // Hostname de la machine
+
+    memcpy(&addr, contenu, 4);  // 4 octets pour l'adresse IP
+    memcpy(hostname, contenu + 4, 28);  // 28 octets pour le hostname
+    // Autres informations à récupérer ?
+    hostname[27] = '\0';    // Fin des informations récupérées
+
+    printf("  %-16s %s\n", inet_ntoa(addr), hostname);  // Affichage propre et régulier
+
+}
+
+// Réceptionne un paquet envoyé par le Driver au Comm
+static void recevoir_paquet(int localsock) {
+
+    char urgent;
+    char * contenu;
+    // recevoir_paquet() est une fonction static car elle contient une variable static pour mémoriser le nom du fichier traité entre les appels à recevoir_paquet()
+    static char filename[CONTENT_SIZE] = {0};   // Initialise un tableau avec CONTENT_SIZE zéros
+
+    _lire_paquet(localsock, &urgent, &contenu);
+
+    // Réception du nom du fichier à recevoir dans le premier paquet
+    if(urgent == 'f') {
+        _recevoir_nom_fichier(contenu, filename);
+        return; // Traitement terminé dans le cas de la réception du premier paquet pour la réception d'un fichier
+    }
+
+    // Réception d'un paquet concernant les informations sur un hôte de l'anneau
+    if(urgent == 'h') {
+        _afficher_informations_machines(contenu);
+        return;
+    }
+
+    if(urgent == 'u' || urgent == 'e') {
+
+        // Vérifie que le nom de fichier a bien été ajouté : qu'un précédent paquet a été reçu contenant le nom du fichier
+        if(filename[0] == '\0') {
+            printf("Réception d'un paquet de données sans nom de fichier\n");
+            return;
+        }
+
+        _recevoir_bloc_fichier(contenu, urgent, filename);
+
+    }
+
+}
+
 // Menu permettant à l'utilisateur d'utiliser les fonctions
 void comm(int localsock, struct sockaddr_un * serv) {
 
     char msg[SMAX];
+    fd_set readfds;
 
     while(1) {  // Tant que l'utilisateur ne s'est pas déconnecté = tant que le programme n'a pas été volontairement arrêté
 
-        printf("comm> ");
+        int cc;
 
-        // Stockage de la commande entrée par l'utilisateur
-        if(fgets(msg, SMAX, stdin) == NULL) break;
-        msg[strcspn(msg, "\n")] = '\0';  // Retire le \n à la fin de la commande
+        FD_ZERO(&readfds);
+        FD_SET(STDIN_FILENO, &readfds); // Surveille les commandes entrées par l'utilisateur
+        FD_SET(localsock, &readfds);    // Surveille les transmissions envoyées par le Driver au Comm
 
-        commande(msg, localsock, serv);    // Détermine la commande entrée par l'utilisateur et exécute l'action correspondante
+        // Mise en place du select
+        cc = select(localsock + 1, &readfds, NULL, NULL, NULL);
+        if(cc == -1) FATAL("select");
+
+        // Traitement d'une commande entrée par l'utilisateur
+        if(FD_ISSET(STDIN_FILENO, &readfds)) {
+            printf("comm> ");
+            if(fgets(msg, SMAX, stdin) == NULL) break;  // Stockage de la commande entrée par l'utilisateur
+            msg[strcspn(msg, "\n")] = '\0';  // Retire le \n à la fin de la commande
+            commande(msg, localsock, serv);    // Détermine la commande entrée par l'utilisateur et exécute l'action correspondante
+        }
+
+        if(FD_ISSET(localsock, &readfds)) recevoir_paquet(localsock);   // Réception d'un paquet envoyé par le Driver au Comm
 
     }
 
