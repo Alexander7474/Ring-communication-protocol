@@ -23,4 +23,10 @@ void get_data(char *buffer, char *data);
 
 void dump_message(char* buffer);
 
+int skip_buffer(int sock, char *buffer);
+
+int send_connection_message(int sockg, int sockd, char *buffer);
+
+int is_loopback_sock(int sock);
+
 #endif // !DRIVER_H

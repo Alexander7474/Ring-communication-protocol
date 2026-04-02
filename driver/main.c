@@ -80,6 +80,7 @@ int main (int argc, char *argv[])
                                 int tmp_socket = accept(newsockd, (struct sockaddr *)&servd, (socklen_t *) &lenpservd);
                                 push_rg_buff(&waiting_hosts, tmp_socket);
                         }else{
+                                printf("Première reception de sockd\n");
                                 sockd = accept(newsockd, (struct sockaddr *)&servd, (socklen_t *) &lenpservd);
                         }
                 }
@@ -120,15 +121,6 @@ int main (int argc, char *argv[])
                         printf("Client prêt !\n");
                 }
 
-                // traitement des données reçu 
-                // si token libre -> Check new hosts FILE -> sinon check besoin du comm -> sinon faire passer
-                if(data_recv){
-                        increment_token(recv_buffer);
-                        memcpy(send_buffer, recv_buffer, SMAX); 
-                        dump_message(send_buffer);
-                        send_sockg(sockg, send_buffer);
-                } 
-
 #ifdef DEBUG
                 printf("Debug start ----------------\n");
                 printf("Taille ring_buffer: %d\n", rg_buff_size(&waiting_hosts));
@@ -137,7 +129,70 @@ int main (int argc, char *argv[])
 #ifdef SLOW_MODE
                 sleep(1);
 #endif
+
+                if(!data_recv)
+                        continue; // Aucune données recu
+                
+                // traitement des données reçu 
+                // si token libre -> Check new hosts FILE -> sinon check besoin du comm -> sinon faire passer
+
+                dump_message(recv_buffer);
+                char flag = get_flag(recv_buffer);
+                // Do things
+                switch(flag){
+                case 'f':
+                        if(!is_rg_buff_empty(&waiting_hosts)){
+                                if(is_loopback_sock(sockg)){
+                                        close(sockd);
+                                        close(sockg);
+
+                                        // TODO -- change cette procedure de merde
+                                        pop_rg_buff(&waiting_hosts, &sockd); // recup de premier host de la file
+                                        struct sockaddr_storage peer_addr;
+                                        socklen_t len = sizeof(peer_addr);
+                                        getpeername(sockd, (struct sockaddr *)&peer_addr, &len);
+                                        struct sockaddr_in *peer_in = (struct sockaddr_in *)&peer_addr;
+                                        char ip_str[INET_ADDRSTRLEN];
+                                        inet_ntop(AF_INET, &peer_in->sin_addr, ip_str, sizeof(ip_str));
+                                        struct sockaddr_in new_addr;
+                                        memset(&new_addr, 0, sizeof(new_addr));
+                                        new_addr.sin_family = AF_INET;
+                                        new_addr.sin_port = htons(PORT); // same port as the original connection
+                                        inet_pton(AF_INET, ip_str, &new_addr.sin_addr);
+                                        sockg = socket(AF_INET, SOCK_STREAM, 0);
+                                        if (connect(sockg, (struct sockaddr *)&new_addr, sizeof(new_addr)) == -1) {
+                                                FATAL("Reconnect socket");
+                                        }else{
+                                                printf("Sockg reconnecté\n");
+                                        }
  
+                                        break;
+                                }
+
+                                shutdown(sockd, SHUT_WR);
+                                close(sockd);
+                                pop_rg_buff(&waiting_hosts, &sockd); // recup de premier host de la file
+                                // envoie du message 'c'
+                                send_connection_message(sockg, sockd, recv_buffer);
+                        }else{
+                                int cc = skip_buffer(sockg, recv_buffer);
+                                if(cc <= 0) FATAL("skip_buffer");
+                        }
+                        break;
+                case 'c':
+                        // test si sockg est fermé (oui = changement de sockg)
+                        char buf;
+                        ssize_t n = recv(sockg, &buf, 1, MSG_PEEK | MSG_DONTWAIT);
+                        if (n == 0) {
+
+                        }else{
+                                int cc = skip_buffer(sockg, recv_buffer);
+                                if(cc <= 0) FATAL("skip_buffer");
+                        }
+                default:
+                        FATAL("Unknow flag wtf\n");
+                }
+
         }
         
         close(sockd);

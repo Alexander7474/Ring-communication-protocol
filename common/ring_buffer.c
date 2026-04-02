@@ -68,12 +68,12 @@ int read_rg_buff(struct ring_buffer* buffer, int* i)
 }
 
 /**
- * is_rg_buffer_full - Détérmine si un ring_buffer est full
+ * is_rg_buffer_empty - Détérmine si un ring_buffer est full
  * @buffer: pointeur vers le ring_buffer
  *
- * Return: 1 si full, 0 si non
+ * Return: 1 si empty, 0 si non
  */
-int is_rg_buff_full(struct ring_buffer* buffer)
+int is_rg_buff_empty(struct ring_buffer* buffer)
 {
         if (buffer->read_head == buffer->write_head)
                 return 1;
