@@ -23,6 +23,7 @@
  * Taille du contenu (en octets)
 */
 #define CONTENT_SIZE 32 // 256 bits, donc 32 octets car 256 / 8 (car 1 octet = 8 bytes) = 32
+#define DATA_SIZE 32 // 256 bits, donc 32 octets car 256 / 8 (car 1 octet = 8 bytes) = 32
 
 /**
  * Taille d'un paquet (en octets)
