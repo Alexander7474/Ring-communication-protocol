@@ -60,8 +60,6 @@ int main (int argc, char *argv[])
 
                 if(sockd>0)
                         FD_SET(sockd, &readfds);
-                else 
-                        printf("Aucun client connécté\n");
 
                 if(sockd>newsockd)
                         max_sd = sockd;
@@ -74,14 +72,18 @@ int main (int argc, char *argv[])
                         FATAL("activity");
 
                 if(FD_ISSET(newsockd, &readfds)){
+#ifdef DEBUG
                         printf("Sockd nouvelle connection !\n");
+#endif
                         int lenpservd = sizeof(servd);
 
                         if(sockd > 0){
                                 int tmp_socket = accept(newsockd, (struct sockaddr *)&servd, (socklen_t *) &lenpservd);
                                 push_rg_buff(&waiting_hosts, tmp_socket);
                         }else{
+#ifdef DEBUG
                                 printf("Première reception de sockd\n");
+#endif
                                 sockd = accept(newsockd, (struct sockaddr *)&servd, (socklen_t *) &lenpservd);
                         }
                 }
@@ -97,7 +99,9 @@ int main (int argc, char *argv[])
                 if(last_recv.tv_sec < actual_time.tv_sec - MAX_WAIT){ 
                         generate_message_buffer(send_buffer);
                         clock_gettime(CLOCK_MONOTONIC, &last_recv);
+#ifdef DEBUG
                         printf("Token regénéré\n");
+#endif
                         send_sockg(sockg, send_buffer);
                 }
 
@@ -119,7 +123,9 @@ int main (int argc, char *argv[])
                         if(connect(sockg, (struct sockaddr*) &servg, sizeof(servg)) == -1){
                           FATAL("Connect socket");
                         }
+#ifdef DEBUG
                         printf("Client prêt !\n");
+#endif
                 }
 
 #ifdef DEBUG
@@ -137,7 +143,9 @@ int main (int argc, char *argv[])
                 // traitement des données reçu 
                 // si token libre -> Check new hosts FILE -> sinon check besoin du comm -> sinon faire passer
 
+#ifdef DEBUG
                 dump_message(recv_buffer);
+#endif
                 char flag = get_flag(recv_buffer);
                 if(flag == 'f'){
                         if(!is_rg_buff_empty(&waiting_hosts)){
