@@ -15,7 +15,9 @@ char get_flag(char *buffer);
 
 void set_flag(char flag, char *buffer);
 
-void get_addr(char *buffer, char *addr);
+void set_addr(unsigned long addr, char *buffer);
+
+unsigned long get_addr(char *buffer);
 
 void get_token(char *buffer, char *token);
 
@@ -25,8 +27,12 @@ void dump_message(char* buffer);
 
 int skip_buffer(int sock, char *buffer);
 
-int send_connection_message(int sockg, int sockd, char *buffer);
+int send_connection_message(int sockg, unsigned long dest_addr, unsigned long new_host_addr, char *buffer);
 
-int is_loopback_sock(int sock);
+int is_own_addr(unsigned long addr);
+
+unsigned long get_sockaddr(int sock);
+
+void connect_sock(unsigned long addr, int sock);
 
 #endif // !DRIVER_H

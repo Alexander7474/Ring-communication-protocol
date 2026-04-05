@@ -13,17 +13,20 @@
  * Taille du token (en octets)
 */
 #define TOKEN_SIZE 4    // 32 bits
+#define TOKEN_OFFSET (FLAG_SIZE)
 
 /**
  * Taille du token (en octets)
 */
-#define ADDR_SIZE 4     // 32 bits
+#define ADDR_SIZE 8     // 32 bits
+#define ADDR_OFFSET (FLAG_SIZE+TOKEN_SIZE)
 
 /**
  * Taille du contenu (en octets)
 */
 #define CONTENT_SIZE 32 // 256 bits, donc 32 octets car 256 / 8 (car 1 octet = 8 bytes) = 32
 #define DATA_SIZE 32 // 256 bits, donc 32 octets car 256 / 8 (car 1 octet = 8 bytes) = 32
+#define DATA_OFFSET (FLAG_SIZE+TOKEN_SIZE+ADDR_SIZE)
 
 /**
  * Taille d'un paquet (en octets)

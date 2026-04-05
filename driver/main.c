@@ -6,6 +6,7 @@
 #include <sys/socket.h>
 #include <unistd.h>
 #include <time.h>
+#include <ifaddrs.h>
 
 #include "driver.h"
 #include "../common/config.h"
@@ -16,7 +17,7 @@
 int main (int argc, char *argv[])
 {
         if(argc != 2) FATAL("Nombre d'arguments incorrect.\nUsage: ./driver address");
- 
+  
         char recv_buffer[SMAX];
         char send_buffer[SMAX];
         int cc, newsockd, max_sd;
@@ -138,57 +139,54 @@ int main (int argc, char *argv[])
 
                 dump_message(recv_buffer);
                 char flag = get_flag(recv_buffer);
-                // Do things
-                switch(flag){
-                case 'f':
+                if(flag == 'f'){
                         if(!is_rg_buff_empty(&waiting_hosts)){
-                                if(is_loopback_sock(sockg)){
+                                if(is_own_addr(get_sockaddr(sockg))){
                                         close(sockd);
                                         close(sockg);
 
-                                        // TODO -- change cette procedure de merde
                                         pop_rg_buff(&waiting_hosts, &sockd); // recup de premier host de la file
-                                        struct sockaddr_storage peer_addr;
-                                        socklen_t len = sizeof(peer_addr);
-                                        getpeername(sockd, (struct sockaddr *)&peer_addr, &len);
-                                        struct sockaddr_in *peer_in = (struct sockaddr_in *)&peer_addr;
-                                        char ip_str[INET_ADDRSTRLEN];
-                                        inet_ntop(AF_INET, &peer_in->sin_addr, ip_str, sizeof(ip_str));
-                                        struct sockaddr_in new_addr;
-                                        memset(&new_addr, 0, sizeof(new_addr));
-                                        new_addr.sin_family = AF_INET;
-                                        new_addr.sin_port = htons(PORT); // same port as the original connection
-                                        inet_pton(AF_INET, ip_str, &new_addr.sin_addr);
+                                        unsigned long nsockd_addr = get_sockaddr(sockd);
                                         sockg = socket(AF_INET, SOCK_STREAM, 0);
-                                        if (connect(sockg, (struct sockaddr *)&new_addr, sizeof(new_addr)) == -1) {
-                                                FATAL("Reconnect socket");
-                                        }else{
-                                                printf("Sockg reconnecté\n");
-                                        }
- 
-                                        break;
+                                        connect_sock(nsockd_addr, sockg);
+                                        continue;
                                 }
+
+                                unsigned long old_sockd_addr = get_sockaddr(sockd);
 
                                 shutdown(sockd, SHUT_WR);
                                 close(sockd);
                                 pop_rg_buff(&waiting_hosts, &sockd); // recup de premier host de la file
+                                unsigned long new_sockd_addr = get_sockaddr(sockd);
                                 // envoie du message 'c'
-                                send_connection_message(sockg, sockd, recv_buffer);
+                                send_connection_message(sockg, old_sockd_addr, new_sockd_addr, recv_buffer);
                         }else{
                                 int cc = skip_buffer(sockg, recv_buffer);
                                 if(cc <= 0) FATAL("skip_buffer");
                         }
-                        break;
-                case 'c':
-                        // test si sockg est fermé (oui = changement de sockg)
-                        char buf;
-                        ssize_t n = recv(sockg, &buf, 1, MSG_PEEK | MSG_DONTWAIT);
-                        if (n == 0) {
 
-                        }else{
-                                int cc = skip_buffer(sockg, recv_buffer);
-                                if(cc <= 0) FATAL("skip_buffer");
-                        }
+                        continue;
+                }
+
+                // si packet non destiné à la machine
+                if(!is_own_addr(get_addr(recv_buffer))){
+                        int cc = skip_buffer(sockg, recv_buffer);
+                        if(cc <= 0) FATAL("skip_buffer");
+                        continue;
+                }
+
+                // si detiné à la machine tester les flag et agir
+                switch(flag){
+                case 'c':
+                        // copy de l'addresse de connection 
+                        unsigned long addr;
+                        memcpy(&addr, recv_buffer+DATA_OFFSET, sizeof(unsigned long));
+
+                        close(sockg);
+                        sockg = socket(AF_INET, SOCK_STREAM, 0);
+                        connect_sock(addr, sockg);
+                        
+                        break;
                 default:
                         FATAL("Unknow flag wtf\n");
                 }
