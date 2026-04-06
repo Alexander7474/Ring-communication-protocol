@@ -5,6 +5,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/socket.h>
+#include <sys/un.h>
 #include <time.h>
 #include <unistd.h>
 
@@ -21,12 +22,18 @@ main(int argc, char *argv[])
 		FATAL("Nombre d'arguments incorrect.\nUsage: ./driver address");
 
 	char recv_buffer[SMAX];
+	char read_buffer[SMAX];
 	char send_buffer[SMAX];
-	int cc, newsockd, max_sd;
+	int cc, newsockd, newsockcomm, max_sd;
 	struct sockaddr_in servd;
+	struct sockaddr_un servcomm;
+	int opt = 1;
+
+	int comm_request = 0;
 
 	int sockd = 0;
 	int sockg = 0;
+	int sockcomm = 0;
 
 	struct ring_buffer waiting_hosts;
 	rg_buff_set(&waiting_hosts);
@@ -36,37 +43,58 @@ main(int argc, char *argv[])
 	struct timespec actual_time;
 	clock_gettime(CLOCK_MONOTONIC, &last_recv);
 
-	// socket d'écoute
+	// socket d'ecoute unix comm
+	servcomm.sun_family = AF_UNIX;
+	strncpy(servcomm.sun_path, UNIX_SOCKET_PATH,
+	        sizeof(servcomm.sun_path) - 1);
+
+	newsockcomm = socket(AF_UNIX, SOCK_STREAM, 0); // Création de la socket
+	cc = bind(newsockcomm, (struct sockaddr *)&servcomm, sizeof(servcomm));
+	if (cc == -1)
+		FATAL("bind unix"); // Erreur à l'attachement
+
+	cc = listen(newsockcomm, 5);
+	if (cc == -1)
+		FATAL("listen unix");
+
+	// socket d'écoute réseau
 	servd.sin_family = AF_INET;
 	servd.sin_port = htons(PORT);
-	// hp->h_addr = hp->h_addr_list[0]
 	servd.sin_addr.s_addr = htonl(INADDR_ANY);
 
 	newsockd = socket(AF_INET, SOCK_STREAM, 0); // Création de la socket
 
-	int opt = 1;
 	setsockopt(newsockd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt));
 	cc = bind(newsockd, (struct sockaddr *)&servd, sizeof(servd));
 	if (cc == -1)
-		FATAL("bind"); // Erreur à l'attachement
+		FATAL("bind network"); // Erreur à l'attachement
 
 	cc = listen(newsockd, 5);
 	if (cc == -1)
-		FATAL("listen");
+		FATAL("listen network");
 
 	fd_set readfds;
 	while (1) {
 		int data_recv = 0;
+		int data_read = 0;
 
 		FD_ZERO(&readfds);
 		FD_SET(newsockd, &readfds);
-		max_sd = newsockd;
+		FD_SET(newsockcomm, &readfds);
 
 		if (sockd > 0)
 			FD_SET(sockd, &readfds);
 
-		if (sockd > newsockd)
+		if (sockcomm > 0)
+			FD_SET(sockcomm, &readfds);
+
+		max_sd = newsockd;
+		if (sockd > max_sd)
 			max_sd = sockd;
+		if (sockcomm > max_sd)
+			max_sd = sockcomm;
+		if (newsockcomm > max_sd)
+			max_sd = newsockcomm;
 
 		struct timeval timeout = { 1, 0 };
 
@@ -75,6 +103,10 @@ main(int argc, char *argv[])
 
 		if (activity < 0)
 			FATAL("activity");
+
+		//
+		// Gestion des nouveaux arrivants sur comm et d
+		//
 
 		if (FD_ISSET(newsockd, &readfds)) {
 #ifdef DEBUG
@@ -97,10 +129,29 @@ main(int argc, char *argv[])
 			}
 		}
 
+		if (FD_ISSET(newsockcomm, &readfds)) {
+#ifdef DEBUG
+			printf("Sockcomm nouvelle connection !\n");
+#endif
+			int lenpservcomm = sizeof(servcomm);
+			sockcomm = accept(newsockcomm,
+			                  (struct sockaddr *)&servcomm,
+			                  (socklen_t *)&lenpservcomm);
+		}
+
+		//
+		// Reception des données sur les socket d et comm
+		//
+
 		if (FD_ISSET(sockd, &readfds)) {
 			receiv_sockd(sockd, recv_buffer);
 			data_recv = 1;
 			clock_gettime(CLOCK_MONOTONIC, &last_recv);
+		}
+
+		if (FD_ISSET(sockcomm, &readfds)) {
+			receiv_sockd(sockcomm, read_buffer);
+			data_read = 1;
 		}
 
 		clock_gettime(CLOCK_MONOTONIC, &actual_time);
@@ -113,7 +164,10 @@ main(int argc, char *argv[])
 			send_sockg(sockg, send_buffer);
 		}
 
-		// connection de sockg
+		//
+		// Connection de sockg
+		//
+
 		struct hostent *hp;
 		struct sockaddr_in servg;
 
@@ -151,56 +205,74 @@ main(int argc, char *argv[])
 		sleep(1);
 #endif
 
-		if (!data_recv)
-			continue; // Aucune données recu
+		//
+		// Traitement des données recu dans sockd et sockcomm
+		//
+		// traitement des données reçu
+		// si token libre -> Check new hosts FILE -> sinon check
+		// besoin du comm -> sinon faire passer
 
-			// traitement des données reçu
-			// si token libre -> Check new hosts FILE -> sinon check
-			// besoin du comm -> sinon faire passer
+		char flag;
+		if (!data_read)
+			goto recv_buffer_process; // Aucune données recu dans
+			                          // read_buffer
+
+#ifdef DEBUG
+		dump_message(read_buffer);
+#endif
+		flag = get_flag(read_buffer);
+		if (flag == 'n')
+			comm_request++;
+
+	recv_buffer_process:
+		if (!data_recv)
+			continue; // Aucune données recu dans recv_buffer
 
 #ifdef DEBUG
 		dump_message(recv_buffer);
 #endif
-		char flag = get_flag(recv_buffer);
-		if (flag == 'f') {
-			if (!is_rg_buff_empty(&waiting_hosts)) {
-				if (is_own_addr(get_sockaddr(sockg))) {
-					close(sockd);
-					close(sockg);
+		flag = get_flag(recv_buffer);
+		if (flag != 'f')
+			goto flag_process;
 
-					pop_rg_buff(&waiting_hosts,
-					            &sockd); // recup de premier
-					                     // host de la file
-					unsigned long nsockd_addr =
-					        get_sockaddr(sockd);
-					sockg = socket(AF_INET, SOCK_STREAM, 0);
-					connect_sock(nsockd_addr, sockg);
-					continue;
-				}
-
-				unsigned long old_sockd_addr =
-				        get_sockaddr(sockd);
-
-				shutdown(sockd, SHUT_WR);
+		if (!is_rg_buff_empty(&waiting_hosts)) {
+			if (is_own_addr(get_sockaddr(sockg))) {
 				close(sockd);
+				close(sockg);
+
 				pop_rg_buff(&waiting_hosts,
-				            &sockd); // recup de premier host de
-				                     // la file
-				unsigned long new_sockd_addr =
-				        get_sockaddr(sockd);
-				// envoie du message 'c'
-				send_connection_message(sockg, old_sockd_addr,
-				                        new_sockd_addr,
-				                        recv_buffer);
-			} else {
-				int cc = skip_buffer(sockg, recv_buffer);
-				if (cc <= 0)
-					FATAL("skip_buffer");
+				            &sockd); // recup de premier
+				                     // host de la file
+				unsigned long nsockd_addr = get_sockaddr(sockd);
+				sockg = socket(AF_INET, SOCK_STREAM, 0);
+				connect_sock(nsockd_addr, sockg);
+				continue;
 			}
 
-			continue;
+			unsigned long old_sockd_addr = get_sockaddr(sockd);
+
+			shutdown(sockd, SHUT_WR);
+			close(sockd);
+			pop_rg_buff(&waiting_hosts,
+			            &sockd); // recup de premier host de
+			                     // la file
+			unsigned long new_sockd_addr = get_sockaddr(sockd);
+			// envoie du message 'c'
+			send_connection_message(sockg, old_sockd_addr,
+			                        new_sockd_addr, recv_buffer);
+		} else if (comm_request >= 1) {
+			send_sockg(sockcomm, recv_buffer);
+			receiv_sockd(sockcomm, recv_buffer);
+			skip_buffer(sockg, recv_buffer);
+		} else {
+			int cc = skip_buffer(sockg, recv_buffer);
+			if (cc <= 0)
+				FATAL("skip_buffer");
 		}
 
+		continue;
+
+	flag_process:
 		// si packet non destiné à la machine
 		if (!is_own_addr(get_addr(recv_buffer))) {
 			int cc = skip_buffer(sockg, recv_buffer);
