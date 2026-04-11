@@ -24,6 +24,26 @@ void help() {
 
 }
 
+// Retourne l'adresse IP de la machine source pour pouvoir savoir d'où vient le paquet et surtout permettre de s'arrêter à la bonne machine dans le cadre d'une diffusion
+static struct in_addr _resoudre_source() {
+
+    char hostname[256];
+    struct hostent * hp;
+    struct in_addr addr;
+
+    // Récupération du hostname de la machine
+    if(gethostname(hostname, sizeof(hostname)) < 0) FATAL("gethostname");
+
+    // Création de la structure de la machine à partir du hostname
+    hp = gethostbyname(hostname);
+    if(hp == NULL) FATAL("gethostname");
+    memcpy(&addr, hp->h_addr, hp->h_length);
+    // hp->h_addr = hp->h_addr_list[0]
+
+    return addr;
+
+}
+
 // Retourne l'adresse IP du destinataire pour gérer le cas où l'utilisateur renseigne le hostname de la machine destinataire
 static struct in_addr _resoudre_destinataire(const char * destinataire) {
 
@@ -43,7 +63,7 @@ static struct in_addr _resoudre_destinataire(const char * destinataire) {
 }
 
 // Construit le paquet contenant le caractère urgent, le token, l'adresse IP du destinataire et le contenu
-static void _construire_paquet(char * paquet, char urgent, const char * token, struct in_addr addr, const char * contenu, int nb_octets) {
+static void _construire_paquet(char * paquet, char urgent, const char * token, struct in_addr source, struct in_addr addr, const char * contenu, int nb_octets) {
     
     int current_octet = 0;
 
@@ -54,6 +74,10 @@ static void _construire_paquet(char * paquet, char urgent, const char * token, s
     // Ajoute le token au paquet
     memcpy(paquet + current_octet, token, TOKEN_SIZE);
     current_octet += TOKEN_SIZE;
+
+    // Ajoute l'adresse IP de la source au paquet
+    memcpy(paquet + current_octet, &source.s_addr, ADDR_SIZE);
+    current_octet += ADDR_SIZE;
 
     // Ajoute l'adresse IP du destinataire au paquet
     memcpy(paquet + current_octet, &addr.s_addr, ADDR_SIZE);
@@ -71,8 +95,9 @@ static void _envoyer_paquets(int localsock, const char * msg, const char * token
     int cc;
     int msg_len = strlen(msg);
     int nb_octets_envoyes = 0;
-    struct in_addr addr;
+    struct in_addr source, addr;
 
+    source = _resoudre_source();
     addr = _resoudre_destinataire(destinataire);
 
     // Envoyer des paquets tant qu'il reste du contenu à envoyer car il faut gérer le cas où la taille du contenu est supérieur à 256
@@ -81,7 +106,7 @@ static void _envoyer_paquets(int localsock, const char * msg, const char * token
         int nb_octets_a_envoyer;
         bool dernier_paquet;
         char urgent;
-        char paquet[PACKET_SIZE];   // 1 + 4 + 4 + 32 = 41 octets (taille d'un paquet)
+        char paquet[PACKET_SIZE];   // 1 + 4 + 8 + 8 + 32 = 53 octets (taille d'un paquet)
 
         // Calcul du nombre de bits à envoyer dans ce paquet
         nb_octets_a_envoyer = msg_len - nb_octets_envoyes;
@@ -95,7 +120,7 @@ static void _envoyer_paquets(int localsock, const char * msg, const char * token
         if(dernier_paquet) urgent = 'e';
         else urgent = 'u';
 
-        _construire_paquet(paquet, urgent, token, addr, msg + nb_octets_envoyes, nb_octets_a_envoyer);
+        _construire_paquet(paquet, urgent, token, source, addr, msg + nb_octets_envoyes, nb_octets_a_envoyer);
 
         // Envoi le paquet
         cc = send(localsock, paquet, PACKET_SIZE, 0);
@@ -156,18 +181,19 @@ void transferer_fichier(const char * fichier, const char * destinataire, int loc
     int cc, nb_octets_lus;
     char token[TOKEN_SIZE], filename[PACKET_SIZE], contenu[CONTENT_SIZE];
     FILE * file;
-    struct in_addr addr;
+    struct in_addr source, addr;
 
     // Ouverture du fichier en mode lecture
     file = fopen(fichier, "r");
     if(file == NULL) FATAL("fopen");
 
+    source = _resoudre_source();    // Récupère l'adresse IP de la source
     addr = _resoudre_destinataire(destinataire);    // Récupère l'adresse IP du destinataire pour gérer le cas où l'utilisateur renseigne le hostname de la machine destinataire  
 
     _recuperer_token(localsock, token);    // Envoi une demande au Driver pour récupérer le Token qui le retourne
 
     // Envoi d'un paquet contenant le caractère urgent 'f' spécifiant le nom du fichier
-    _construire_paquet(filename, 'f', token, addr, fichier, strlen(fichier) + 1);
+    _construire_paquet(filename, 'f', token, source, addr, fichier, strlen(fichier) + 1);
     cc = send(localsock, filename, PACKET_SIZE, 0);
     if(cc == -1) FATAL("send");
 
@@ -186,7 +212,7 @@ void transferer_fichier(const char * fichier, const char * destinataire, int loc
         if(dernier_paquet) urgent = 'e';
         else urgent = 'u';
 
-        _construire_paquet(paquet, urgent, token, addr, contenu, nb_octets_lus);
+        _construire_paquet(paquet, urgent, token, source, addr, contenu, nb_octets_lus);
 
         // Envoi le paquet
         cc = send(localsock, paquet, PACKET_SIZE, 0);
@@ -204,15 +230,16 @@ void recuperer(int localsock) {
 
     int cc;
     char token[TOKEN_SIZE];
+    struct in_addr source, broadcast;
 
     _recuperer_token(localsock, token);
 
     // Envoi un paquet contenant le caractère urgent 'h' au Driver pour récupérer les données de toutes les machines connectées à l'anneau
     char paquet[PACKET_SIZE];
-    struct in_addr broadcast;
+    source = _resoudre_source();
     inet_pton(AF_INET, BROADCAST_ADDR, &broadcast);
 
-    _construire_paquet(paquet, 'h', token, broadcast, "", 0);
+    _construire_paquet(paquet, 'h', token, source, broadcast, "", 0);
 
     cc = send(localsock, paquet, PACKET_SIZE, 0);
     if(cc == -1) FATAL("send");
@@ -313,8 +340,8 @@ static void _afficher_informations_machines(const char * contenu) {
     struct in_addr addr;    // Adresse IP de la machine
     char hostname[28];  // Hostname de la machine
 
-    memcpy(&addr, contenu, 4);  // 4 octets pour l'adresse IP
-    memcpy(hostname, contenu + 4, 28);  // 28 octets pour le hostname
+    memcpy(&addr, contenu, ADDR_SIZE);  // 8 octets pour l'adresse IP
+    memcpy(hostname, contenu + ADDR_SIZE, 28);  // 28 octets pour le hostname
     // Autres informations à récupérer ?
     hostname[27] = '\0';    // Fin des informations récupérées
 

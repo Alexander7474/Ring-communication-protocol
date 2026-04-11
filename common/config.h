@@ -16,7 +16,7 @@
 /**
  * Taille du token (en octets)
 */
-#define ADDR_SIZE 4     // 32 bits
+#define ADDR_SIZE 8     // 64 bits
 
 /**
  * Taille du contenu (en octets)
@@ -26,7 +26,7 @@
 /**
  * Taille d'un paquet (en octets)
 */
-#define PACKET_SIZE (URGENT_SIZE + TOKEN_SIZE + ADDR_SIZE + CONTENT_SIZE)   // 1 + 4 + 4 + 32 = 41 octets (taille d'un paquet)
+#define PACKET_SIZE (URGENT_SIZE + TOKEN_SIZE + ADDR_SIZE + ADDR_SIZE + CONTENT_SIZE)   // 1 + 4 + 8 + 8 + 32 = 53 octets (taille d'un paquet)
 
 /**
  * Port utilisé par le protocole
