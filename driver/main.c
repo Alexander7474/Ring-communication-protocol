@@ -45,7 +45,9 @@ main(int argc, char *argv[])
 
 	// socket d'ecoute unix comm
 	servcomm.sun_family = AF_UNIX;
-	strncpy(servcomm.sun_path, UNIX_SOCKET_PATH,
+        const char *socket_path = getenv("DRIVER_SOCKET_PATH");
+        if (!socket_path) socket_path = UNIX_SOCKET_PATH;
+	strncpy(servcomm.sun_path, socket_path,
 	        sizeof(servcomm.sun_path) - 1);
 
 	newsockcomm = socket(AF_UNIX, SOCK_STREAM, 0); // Création de la socket
