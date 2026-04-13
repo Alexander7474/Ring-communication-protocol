@@ -107,7 +107,7 @@ print_summary() {
     echo ""
     echo -e "  ${YELLOW}Exemple d'utilisation :${RESET}"
     echo -e "  sudo ip netns exec netns-1 ./build/driver/driver ${SUBNET}.1"
-    echo -e "  sudo ip netns exec netns-2 ./build/driver/driver ${SUBNET}.2"
+    echo -e "  sudo ip netns exec netns-1 bash -c 'DRIVER_SOCKET_PATH=/tmp/driver_1.sock ./build/driver/driver ${SUBNET}.1'"
     echo ""
     echo -e "  ${YELLOW}Capturer le trafic :${RESET}"
     echo -e "  sudo ip netns exec netns-1 tcpdump -i veth1 port $PORT"
