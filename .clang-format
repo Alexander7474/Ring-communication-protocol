@@ -1,0 +1,73 @@
+# .clang-format - Linux kernel coding style
+# Based on Documentation/process/coding-style.rst
+
+BasedOnStyle: LLVM
+
+# Indentation
+IndentWidth:                  8
+UseTab:                       ForIndentation
+TabWidth:                     8
+ContinuationIndentWidth:      8
+
+# Line length
+ColumnLimit:                  80
+
+# Braces
+BreakBeforeBraces:            Linux
+BraceWrapping:
+  AfterClass:                 true
+  AfterControlStatement:      false
+  AfterEnum:                  true
+  AfterFunction:              true
+  AfterNamespace:             true
+  AfterStruct:                true
+  AfterUnion:                 true
+  BeforeCatch:                false
+  BeforeElse:                 false
+  IndentBraces:               false
+
+# Spaces
+SpaceBeforeParens:            ControlStatements
+SpaceInEmptyParentheses:      false
+SpacesInCStyleCastParentheses: false
+SpaceAfterCStyleCast:         false
+SpaceBeforeAssignmentOperators: true
+SpaceBeforeSquareBrackets:    false
+SpacesInSquareBrackets:       false
+SpacesInParentheses:          false
+SpacesInAngles:               false
+
+# Pointer alignment: "int *ptr" not "int* ptr"
+PointerAlignment:             Right
+ReferenceAlignment:           Right
+
+# Function declarations
+AllowShortFunctionsOnASingleLine: None
+AllowShortIfStatementsOnASingleLine: Never
+AllowShortLoopsOnASingleLine: false
+AllowShortBlocksOnASingleLine: Never
+AllowShortCaseLabelsOnASingleLine: false
+
+# Breaking
+AlwaysBreakAfterReturnType:   TopLevel
+BreakBeforeBinaryOperators:   None
+BreakBeforeTernaryOperators:  false
+BreakStringLiterals:          false
+
+# Alignment
+AlignConsecutiveAssignments:  false
+AlignConsecutiveDeclarations: false
+AlignEscapedNewlines:         Left
+AlignTrailingComments:        true
+AlignAfterOpenBracket:        Align
+
+# Includes
+SortIncludes:                 true
+IncludeBlocks:                Preserve
+
+# Misc
+MaxEmptyLinesToKeep:          1
+KeepEmptyLinesAtTheStartOfBlocks: false
+Cpp11BracedListStyle:         false
+DerivePointerAlignment:       false
+DisableFormat:                false

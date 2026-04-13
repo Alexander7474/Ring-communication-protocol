@@ -9,7 +9,7 @@ ORANGE=\033[0;33m
 NC=\033[0m # No Color
 
 ifeq ($(DEBUG),1)
-    CFLAGS += -g3 -O0 -DDEBUG
+    CFLAGS += -g3 -O0 -DDEBUG -DSLOW_MODE
 else
     CFLAGS += -O2 -DNDEBUG
 endif

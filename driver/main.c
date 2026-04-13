@@ -1,119 +1,309 @@
+#include <arpa/inet.h>
+#include <ifaddrs.h>
+#include <netdb.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <netdb.h>
-#include <arpa/inet.h>
 #include <sys/socket.h>
+#include <sys/un.h>
+#include <time.h>
 #include <unistd.h>
 
-#include "driver.h"
 #include "../common/config.h"
 #include "../common/error.h"
+#include "../common/ring_buffer.h"
+#include "driver.h"
 
 // server qui se parle a lui meme avec son fils (bizarre)
-int main (int argc, char *argv[])
+int
+main(int argc, char *argv[])
 {
-        if(argc != 2) FATAL("Nombre d'arguments incorrect.\n Usage: ./driver address");
- 
-        char recv_buffer[SMAX];
-        char send_buffer[SMAX];
-        int cc, sockd, max_sd;
-        int newsockd = 0;
-        int sockg = 0;
-        struct sockaddr_in servd;
+	if (argc != 2)
+		FATAL("Nombre d'arguments incorrect.\nUsage: ./driver address");
 
-        servd.sin_family = AF_INET;  // On nous demandait d'utiliser le domaine Internet
-        servd.sin_port = htons(PORT);    // htons(PORT) pour convertir le numéro de port
-        // hp->h_addr = hp->h_addr_list[0]
-        servd.sin_addr.s_addr = htonl(INADDR_ANY);
+	char recv_buffer[SMAX];
+	char read_buffer[SMAX];
+	char send_buffer[SMAX];
+	int cc, newsockd, newsockcomm, max_sd;
+	struct sockaddr_in servd;
+	struct sockaddr_un servcomm;
+	int opt = 1;
 
-        sockd = socket(AF_INET, SOCK_STREAM, 0);  // Création de la socket
+	int comm_request = 0;
 
-        int opt = 1;
-        setsockopt(sockd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt));
-        cc = bind(sockd, (struct sockaddr *) &servd, sizeof(servd));
-        if(cc == -1) FATAL("bind"); // Erreur à l'attachement
+	int sockd = 0;
+	int sockg = 0;
+	int sockcomm = 0;
 
-        cc = listen(sockd, 5);
-        if(cc == -1) FATAL("listen");
+	struct ring_buffer waiting_hosts;
+	rg_buff_set(&waiting_hosts);
 
-        fd_set readfds;
-        while(1){
-                int data_recv = 0;
+	// gestion du temps
+	struct timespec last_recv;
+	struct timespec actual_time;
+	clock_gettime(CLOCK_MONOTONIC, &last_recv);
 
-                FD_ZERO(&readfds);
-                FD_SET(sockd, &readfds);
-                max_sd = sockd;
+	// socket d'ecoute unix comm
+	servcomm.sun_family = AF_UNIX;
+        const char *socket_path = getenv("DRIVER_SOCKET_PATH");
+        if (!socket_path) socket_path = UNIX_SOCKET_PATH;
+	strncpy(servcomm.sun_path, socket_path,
+	        sizeof(servcomm.sun_path) - 1);
 
-                if(newsockd>0)
-                        FD_SET(newsockd, &readfds);
-                else 
-                        printf("Aucun client connécté\n");
+	newsockcomm = socket(AF_UNIX, SOCK_STREAM, 0); // Création de la socket
+	cc = bind(newsockcomm, (struct sockaddr *)&servcomm, sizeof(servcomm));
+	if (cc == -1)
+		FATAL("bind unix"); // Erreur à l'attachement
 
-                if(newsockd>sockd)
-                        max_sd = newsockd;
+	cc = listen(newsockcomm, 5);
+	if (cc == -1)
+		FATAL("listen unix");
 
-                struct timeval timeout;
-                timeout.tv_sec = 1;
-                timeout.tv_usec = 0;
+	// socket d'écoute réseau
+	servd.sin_family = AF_INET;
+	servd.sin_port = htons(PORT);
+	servd.sin_addr.s_addr = htonl(INADDR_ANY);
 
-                int activity = select(max_sd+1, &readfds, NULL, NULL, &timeout);
+	newsockd = socket(AF_INET, SOCK_STREAM, 0); // Création de la socket
 
-                if(activity < 0)
-                        FATAL("activity");
+	setsockopt(newsockd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt));
+	cc = bind(newsockd, (struct sockaddr *)&servd, sizeof(servd));
+	if (cc == -1)
+		FATAL("bind network"); // Erreur à l'attachement
 
-                if(FD_ISSET(sockd, &readfds)){
-                        int lenpservd = sizeof(servd);
-                        newsockd = accept(sockd, (struct sockaddr *)&servd, (socklen_t *) &lenpservd);
-                        printf("Sockd nouvelle connection !\n");
-                }
+	cc = listen(newsockd, 5);
+	if (cc == -1)
+		FATAL("listen network");
 
+	fd_set readfds;
+	while (1) {
+		int data_recv = 0;
+		int data_read = 0;
 
-                if(FD_ISSET(newsockd, &readfds)){
-                        receiv_sockd(newsockd, recv_buffer);
-                        printf("Message recu: %s\n", recv_buffer);
-                        data_recv = 1;
-                }else{ // si l'on ne recoit rien depuis MAX_WAIT, on regénére un token
-                        generate_token(send_buffer);
-                }
+		FD_ZERO(&readfds);
+		FD_SET(newsockd, &readfds);
+		FD_SET(newsockcomm, &readfds);
 
-                // connection de sockg
-                struct hostent * hp;
-                struct sockaddr_in servg;
+		if (sockd > 0)
+			FD_SET(sockd, &readfds);
 
-                // connection de sockg avec address en argument
-                if(sockg <= 0){
-                        hp = gethostbyname(argv[1]);
-                        if(hp == NULL) FATAL("gethostbyname");  // Toujours tester pour éviter d'accumuler les erreurs
+		if (sockcomm > 0)
+			FD_SET(sockcomm, &readfds);
 
-                        servg.sin_family = AF_INET;
-                        servg.sin_port = htons(PORT);
-                        bcopy(hp->h_addr, (char *) & servg.sin_addr, hp->h_length);
+		max_sd = newsockd;
+		if (sockd > max_sd)
+			max_sd = sockd;
+		if (sockcomm > max_sd)
+			max_sd = sockcomm;
+		if (newsockcomm > max_sd)
+			max_sd = newsockcomm;
 
-                        sockg = socket(AF_INET, SOCK_STREAM, 0);
+		struct timeval timeout = { 1, 0 };
 
-                        if(connect(sockg, (struct sockaddr*) &servg, sizeof(servg)) == -1){
-                          FATAL("Connect socket");
-                        }
-                        printf("Client prêt !\n");
-                }
+		int activity =
+		        select(max_sd + 1, &readfds, NULL, NULL, &timeout);
 
-                if(data_recv){
-                        char token[TOKEN_SIZE+1];
-                        memcpy(token, recv_buffer, TOKEN_SIZE); // extraction du token dans le message
-                        int value = (int)strtol(token, NULL, 16);
-                        value++;
-                        snprintf(token, sizeof(token), "%08X", value);  // uppercase, zero-padded to 8 chars
-                        memcpy(send_buffer, token, TOKEN_SIZE); 
-                } 
-                
-                printf("Envoie: %s\n", send_buffer);
-                send_sockg(sockg, send_buffer);
-        }
-        
-        close(sockd);
-        close(sockg);
+		if (activity < 0)
+			FATAL("activity");
 
-        exit(0);
-        return 0;
+		//
+		// Gestion des nouveaux arrivants sur comm et d
+		//
+
+		if (FD_ISSET(newsockd, &readfds)) {
+#ifdef DEBUG
+			printf("Sockd nouvelle connection !\n");
+#endif
+			int lenpservd = sizeof(servd);
+
+			if (sockd > 0) {
+				int tmp_socket = accept(
+				        newsockd, (struct sockaddr *)&servd,
+				        (socklen_t *)&lenpservd);
+				push_rg_buff(&waiting_hosts, tmp_socket);
+			} else {
+#ifdef DEBUG
+				printf("Première reception de sockd\n");
+#endif
+				sockd = accept(newsockd,
+				               (struct sockaddr *)&servd,
+				               (socklen_t *)&lenpservd);
+			}
+		}
+
+		if (FD_ISSET(newsockcomm, &readfds)) {
+#ifdef DEBUG
+			printf("Sockcomm nouvelle connection !\n");
+#endif
+			int lenpservcomm = sizeof(servcomm);
+			sockcomm = accept(newsockcomm,
+			                  (struct sockaddr *)&servcomm,
+			                  (socklen_t *)&lenpservcomm);
+		}
+
+		//
+		// Reception des données sur les socket d et comm
+		//
+
+		if (FD_ISSET(sockd, &readfds)) {
+			receiv_sockd(sockd, recv_buffer);
+			data_recv = 1;
+			clock_gettime(CLOCK_MONOTONIC, &last_recv);
+		}
+
+		if (FD_ISSET(sockcomm, &readfds)) {
+			receiv_sockd(sockcomm, read_buffer);
+			data_read = 1;
+		}
+
+		clock_gettime(CLOCK_MONOTONIC, &actual_time);
+		if (last_recv.tv_sec < actual_time.tv_sec - MAX_WAIT) {
+			generate_message_buffer(send_buffer);
+			clock_gettime(CLOCK_MONOTONIC, &last_recv);
+#ifdef DEBUG
+			printf("Token regénéré\n");
+#endif
+			send_sockg(sockg, send_buffer);
+		}
+
+		//
+		// Connection de sockg
+		//
+
+		struct hostent *hp;
+		struct sockaddr_in servg;
+
+		// connection de sockg avec address en argument
+		if (sockg <= 0) {
+			hp = gethostbyname(argv[1]);
+			if (hp == NULL)
+				FATAL("gethostbyname"); // Toujours tester pour
+				                        // éviter d'accumuler
+				                        // les erreurs
+
+			servg.sin_family = AF_INET;
+			servg.sin_port = htons(PORT);
+			bcopy(hp->h_addr, (char *)&servg.sin_addr,
+			      hp->h_length);
+
+			sockg = socket(AF_INET, SOCK_STREAM, 0);
+
+			if (connect(sockg, (struct sockaddr *)&servg,
+			            sizeof(servg)) == -1) {
+				FATAL("Connect socket");
+			}
+#ifdef DEBUG
+			printf("Client prêt !\n");
+#endif
+		}
+
+#ifdef DEBUG
+		printf("Debug start ----------------\n");
+		printf("Taille ring_buffer: %d\n",
+		       rg_buff_size(&waiting_hosts));
+		printf("Debug end ------------------\n");
+#endif
+#ifdef SLOW_MODE
+		sleep(1);
+#endif
+
+		//
+		// Traitement des données recu dans sockd et sockcomm
+		//
+		// traitement des données reçu
+		// si token libre -> Check new hosts FILE -> sinon check
+		// besoin du comm -> sinon faire passer
+
+		char flag;
+		if (!data_read)
+			goto recv_buffer_process; // Aucune données recu dans
+			                          // read_buffer
+
+#ifdef DEBUG
+		dump_message(read_buffer);
+#endif
+		flag = get_flag(read_buffer);
+		if (flag == 'n')
+			comm_request++;
+
+	recv_buffer_process:
+		if (!data_recv)
+			continue; // Aucune données recu dans recv_buffer
+
+#ifdef DEBUG
+		dump_message(recv_buffer);
+#endif
+		flag = get_flag(recv_buffer);
+		if (flag != 'f')
+			goto flag_process;
+
+		if (!is_rg_buff_empty(&waiting_hosts)) {
+			if (is_own_addr(get_sockaddr(sockg))) {
+				close(sockd);
+				close(sockg);
+
+				pop_rg_buff(&waiting_hosts,
+				            &sockd); // recup de premier
+				                     // host de la file
+				unsigned long nsockd_addr = get_sockaddr(sockd);
+				sockg = socket(AF_INET, SOCK_STREAM, 0);
+				connect_sock(nsockd_addr, sockg);
+				continue;
+			}
+
+			unsigned long old_sockd_addr = get_sockaddr(sockd);
+
+			shutdown(sockd, SHUT_WR);
+			close(sockd);
+			pop_rg_buff(&waiting_hosts,
+			            &sockd); // recup de premier host de
+			                     // la file
+			unsigned long new_sockd_addr = get_sockaddr(sockd);
+			// envoie du message 'c'
+			send_connection_message(sockg, old_sockd_addr,
+			                        new_sockd_addr, recv_buffer);
+		} else if (comm_request >= 1) {
+			send_sockg(sockcomm, recv_buffer);
+			receiv_sockd(sockcomm, recv_buffer);
+			skip_buffer(sockg, recv_buffer);
+		} else {
+			int cc = skip_buffer(sockg, recv_buffer);
+			if (cc <= 0)
+				FATAL("skip_buffer");
+		}
+
+		continue;
+
+	flag_process:
+		// si packet non destiné à la machine
+		if (!is_own_addr(get_addr(recv_buffer))) {
+			int cc = skip_buffer(sockg, recv_buffer);
+			if (cc <= 0)
+				FATAL("skip_buffer");
+			continue;
+		}
+
+		// si detiné à la machine tester les flag et agir
+		switch (flag) {
+		case 'c':
+			// copy de l'addresse de connection
+			unsigned long addr;
+			memcpy(&addr, recv_buffer + DATA_OFFSET,
+			       sizeof(unsigned long));
+
+			close(sockg);
+			sockg = socket(AF_INET, SOCK_STREAM, 0);
+			connect_sock(addr, sockg);
+
+			break;
+		default:
+			FATAL("Unknow flag wtf\n");
+		}
+	}
+
+	close(sockd);
+	close(sockg);
+
+	exit(0);
+	return 0;
 }
