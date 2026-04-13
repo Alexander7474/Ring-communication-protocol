@@ -266,6 +266,7 @@ main(int argc, char *argv[])
 			send_sockg(sockcomm, recv_buffer);
 			receiv_sockd(sockcomm, recv_buffer);
 			skip_buffer(sockg, recv_buffer);
+                        comm_request--;
 		} else {
 			int cc = skip_buffer(sockg, recv_buffer);
 			if (cc <= 0)
@@ -277,12 +278,24 @@ main(int argc, char *argv[])
 	flag_process:
 		// si packet non destiné à la machine
 		if (!is_own_addr(get_addr(recv_buffer))) {
+                        // si packet envoyer par le driver lui même
+                        if (!is_own_addr(get_src_addr(recv_buffer))) {
+                                generate_message_buffer(send_buffer);
+                                clock_gettime(CLOCK_MONOTONIC, &last_recv);
+#ifdef DEBUG
+                                printf("Token regénéré\n");
+#endif
+                                send_sockg(sockg, send_buffer);
+                                continue;
+                        }
+
 			int cc = skip_buffer(sockg, recv_buffer);
 			if (cc <= 0)
 				FATAL("skip_buffer");
 			continue;
 		}
 
+		
 		// si detiné à la machine tester les flag et agir
 		switch (flag) {
 		case 'c':
@@ -296,9 +309,17 @@ main(int argc, char *argv[])
 			connect_sock(addr, sockg);
 
 			break;
+		case 'u': // a  
+		case 'a': // f
+		case 'e': // a
+			send_sockg(sockcomm, recv_buffer);
+			receiv_sockd(sockcomm, recv_buffer); 
+			skip_buffer(sockg, recv_buffer);
+                        break;
 		default:
 			FATAL("Unknow flag wtf\n");
-		}
+                        break;
+                }
 	}
 
 	close(sockd);

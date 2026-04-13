@@ -52,6 +52,7 @@ Chaque driver possède un socket prêt à accueillir une nouvelle machine dans l
 |f | free | Marque les messages avec un token libre  |
 |u| used | Marque un message comme utilisé, le driver doit simplement le faire circuler si il ne lui est pas destiné  |
 |e| end |  Marque le dernier message d'une communication, le driver doit renvoyer le token en circulation après |
+|a| acknowledgement |  Marque la reception d'un message |
 |c|connection| Marque une demande de connection pour un driver 
 
 #### Idée en plus

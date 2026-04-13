@@ -24,8 +24,14 @@ set_flag(char flag, char *buffer);
 void
 set_addr(unsigned long addr, char *buffer);
 
+void
+set_src_addr(unsigned long addr, char *buffer);
+
 unsigned long
 get_addr(char *buffer);
+
+unsigned long
+get_src_addr(char *buffer);
 
 void
 get_token(char *buffer, char *token);
