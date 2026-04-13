@@ -18,21 +18,23 @@
 /**
  * Taille du token (en octets)
 */
+#define ADDR_SRC_SIZE 8
+#define ADDR_SRC_OFFSET (FLAG_SIZE+TOKEN_SIZE)
 #define ADDR_SIZE 8     // 32 bits
-#define ADDR_OFFSET (FLAG_SIZE+TOKEN_SIZE)
+#define ADDR_OFFSET (FLAG_SIZE+TOKEN_SIZE+ADDR_SRC_SIZE)
 
 /**
  * Taille du contenu (en octets)
 */
 #define CONTENT_SIZE 32 // 256 bits, donc 32 octets car 256 / 8 (car 1 octet = 8 bytes) = 32
 #define DATA_SIZE 32 // 256 bits, donc 32 octets car 256 / 8 (car 1 octet = 8 bytes) = 32
-#define DATA_OFFSET (FLAG_SIZE+TOKEN_SIZE+ADDR_SIZE)
+#define DATA_OFFSET (FLAG_SIZE+TOKEN_SIZE+ADDR_SIZE+ADDR_SRC_SIZE)
 
 /**
  * Taille d'un paquet (en octets)
 */
 #define PACKET_SIZE (FLAG_SIZE + TOKEN_SIZE + ADDR_SIZE + CONTENT_SIZE)   // 1 + 4 + 4 + 32 = 41 octets (taille d'un paquet)
-#define SMAX (FLAG_SIZE + TOKEN_SIZE + ADDR_SIZE + CONTENT_SIZE)   // 1 + 4 + 4 + 32 = 41 octets (taille d'un paquet)
+#define SMAX (FLAG_SIZE + TOKEN_SIZE + ADDR_SIZE + ADDR_SRC_SIZE + CONTENT_SIZE)   // 1 + 4 + 4 + 32 = 41 octets (taille d'un paquet)
 
 /**
 * Taille de la file d'attente d'hosts

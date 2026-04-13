@@ -57,7 +57,7 @@ get_flag(char *buffer)
 void
 get_data(char *buffer, char *data)
 {
-	memcpy(data, buffer + FLAG_SIZE + TOKEN_SIZE + ADDR_SIZE, DATA_SIZE);
+	memcpy(data, buffer + DATA_OFFSET, DATA_SIZE);
 }
 
 unsigned long
@@ -68,10 +68,18 @@ get_addr(char *buffer)
 	return addr;
 }
 
+unsigned long
+get_src_addr(char *buffer)
+{
+	unsigned long addr;
+	memcpy(&addr, buffer + ADDR_SRC_OFFSET, sizeof(unsigned long));
+	return addr;
+}
+
 void
 get_token(char *buffer, char *token)
 {
-	memcpy(token, buffer + FLAG_SIZE, TOKEN_SIZE);
+	memcpy(token, buffer + TOKEN_OFFSET, TOKEN_SIZE);
 }
 
 void
@@ -87,11 +95,18 @@ set_addr(unsigned long addr, char *buffer)
 }
 
 void
+set_src_addr(unsigned long addr, char *buffer)
+{
+	memcpy(buffer + ADDR_SRC_OFFSET, &addr, sizeof(unsigned long));
+}
+
+void
 dump_message(char *buffer)
 {
 	char token[TOKEN_SIZE + 1], data[DATA_SIZE + 1];
 	get_token(buffer, token);
 	unsigned long addr = get_addr(buffer);
+	unsigned long src_addr = get_src_addr(buffer);
 	get_data(buffer, data);
 	token[TOKEN_SIZE] = '\0';
 	data[DATA_SIZE] = '\0';
@@ -99,7 +114,8 @@ dump_message(char *buffer)
 	printf("Message: %s\n", buffer);
 	printf("Flag: %c\n", get_flag(buffer));
 	printf("Token: %s\n", token);
-	printf("Address: %ld\n", addr);
+	printf("Source address: %ld\n", src_addr);
+	printf("Destination address: %ld\n", addr);
 	printf("Data: %s\n", data);
 	printf("Message dump end ------------------\n");
 }

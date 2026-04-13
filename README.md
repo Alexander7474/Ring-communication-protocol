@@ -36,8 +36,8 @@ Chaque driver possède un socket prêt à accueillir une nouvelle machine dans l
 
 #### Structure des messages entre driver
 
-| caractère urgent (8 bits)| token (32 bits) | addr (32 bits) | contenue (256 bits)
-|:--------  |:--------:     | --------: | :----:|
+| caractère urgent (8 bits)| token (32 bits) | addr source (64 bits) | addr (64 bits) | contenue (256 bits)
+|:--------  |:--------:     | --------: | :----: | :-----:|
 
 #### Carcatère urgent entre comm et driver
 
