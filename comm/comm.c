@@ -6,10 +6,13 @@
 #include <sys/socket.h>
 #include <unistd.h>
 #include <stdbool.h>
+#include <ifaddrs.h>
 
 #include "../common/config.h"
 #include "../common/error.h"
 #include "comm.h"
+
+static bool emission_en_cours = false;  // Permet de savoir si on doit libérer le token ou pas
 
 // Affiche les commandes utilisables via l'interpréteur de commandes 
 void help() {
@@ -27,19 +30,33 @@ void help() {
 // Retourne l'adresse IP de la machine source pour pouvoir savoir d'où vient le paquet et surtout permettre de s'arrêter à la bonne machine dans le cadre d'une diffusion
 static struct in_addr _resoudre_source() {
 
-    char hostname[256];
-    struct hostent * hp;
     struct in_addr addr;
+    const char * env_ip = getenv("COMM_IP");
 
-    // Récupération du hostname de la machine
-    if(gethostname(hostname, sizeof(hostname)) < 0) FATAL("gethostname");
+    // Cas où on simule des drivers sur la même machine
+    if(env_ip != NULL) {
+        if(inet_pton(AF_INET, env_ip, &addr) != 1) FATAL("COMM_IP invalide");
+        return addr;
+    }
 
-    // Création de la structure de la machine à partir du hostname
-    hp = gethostbyname(hostname);
-    if(hp == NULL) FATAL("gethostname");
-    memcpy(&addr, hp->h_addr, hp->h_length);
-    // hp->h_addr = hp->h_addr_list[0]
+    // Cas où chaque driver est sur une machine indépendante
+    struct ifaddrs *ifaddr, *ifa;
+    addr.s_addr = 0;
 
+    if(getifaddrs(&ifaddr) == -1) FATAL("getifaddrs");
+
+    for(ifa = ifaddr; ifa != NULL; ifa = ifa->ifa_next) {
+        if(ifa->ifa_addr == NULL) continue;
+        if(ifa->ifa_addr->sa_family == AF_INET && strcmp(ifa->ifa_name, "lo") != 0) {
+            struct sockaddr_in * sin = (struct sockaddr_in *) ifa->ifa_addr;
+            addr = sin->sin_addr;
+            break;
+        }
+    }
+
+    freeifaddrs(ifaddr);
+
+    if(addr.s_addr == 0) FATAL("Aucune interface réseau trouvée !");
     return addr;
 
 }
@@ -63,7 +80,7 @@ static struct in_addr _resoudre_destinataire(const char * destinataire) {
 }
 
 // Construit le paquet contenant le caractère urgent, le token, l'adresse IP du destinataire et le contenu
-static void _construire_paquet(char * paquet, char urgent, const char * token, struct in_addr source, struct in_addr addr, const char * contenu, int nb_octets) {
+static void _construire_paquet(char * paquet, char urgent, const char * token, struct in_addr source, struct in_addr dest, const char * contenu, int nb_octets) {
     
     int current_octet = 0;
 
@@ -76,11 +93,13 @@ static void _construire_paquet(char * paquet, char urgent, const char * token, s
     current_octet += TOKEN_SIZE;
 
     // Ajoute l'adresse IP de la source au paquet
-    memcpy(paquet + current_octet, &source.s_addr, ADDR_SIZE);
+    unsigned long source_long = (unsigned long) source.s_addr;  // Pour matcher avec le driver qui stocke les adresses dans un unsigned long (8 octets)
+    memcpy(paquet + current_octet, &source_long, ADDR_SIZE);
     current_octet += ADDR_SIZE;
 
     // Ajoute l'adresse IP du destinataire au paquet
-    memcpy(paquet + current_octet, &addr.s_addr, ADDR_SIZE);
+    unsigned long dest_long = (unsigned long) dest.s_addr;  // Pour matcher avec le driver qui stocke les adresses dans un unsigned long (8 octets)
+    memcpy(paquet + current_octet, &dest_long, ADDR_SIZE);
     current_octet += ADDR_SIZE;
 
     // Ajoute le contenu au paquet
@@ -119,6 +138,9 @@ static void _envoyer_paquets(int localsock, const char * msg, const char * token
         // Détermine le caractère urgent à utiliser pour ce paquet
         if(dernier_paquet) urgent = 'e';
         else urgent = 'u';
+
+        // On est en cours d'émission tant qu'on n'a pas envoyé 'e'
+        emission_en_cours = !dernier_paquet;
 
         _construire_paquet(paquet, urgent, token, source, addr, msg + nb_octets_envoyes, nb_octets_a_envoyer);
 
@@ -160,7 +182,7 @@ static void _envoyer(int localsock, const char * msg, const char * destinataire)
 }
 
 // Envoyer un message à une machine destination
-void emettre(const char * msg, int localsock, struct sockaddr_un * serv, const char * destinataire) {
+void emettre(const char * msg, int localsock, const char * destinataire) {
 
     _envoyer(localsock, msg, destinataire);
     printf("Le message %s a bien été envoyé à %s !\n", msg, destinataire);
@@ -168,7 +190,7 @@ void emettre(const char * msg, int localsock, struct sockaddr_un * serv, const c
 }
 
 // Diffuser un message à toutes les machines de l'anneau
-void diffuser(const char * msg, int localsock, struct sockaddr_un * serv) {
+void diffuser(const char * msg, int localsock) {
 
     _envoyer(localsock, msg, BROADCAST_ADDR);
     printf("Le message %s a bien été diffusé à toutes les machines connectées à l'anneau !\n", msg);
@@ -176,7 +198,7 @@ void diffuser(const char * msg, int localsock, struct sockaddr_un * serv) {
 }
 
 // Permet l'envoie ou la réception d'un fichier (binaire ou ASCII) entre deux machines
-void transferer_fichier(const char * fichier, const char * destinataire, int localsock, struct sockaddr_un * serv) {
+void transferer_fichier(const char * fichier, const char * destinataire, int localsock) {
 
     int cc, nb_octets_lus;
     char token[TOKEN_SIZE], filename[PACKET_SIZE], contenu[CONTENT_SIZE];
@@ -184,7 +206,7 @@ void transferer_fichier(const char * fichier, const char * destinataire, int loc
     struct in_addr source, addr;
 
     // Ouverture du fichier en mode lecture
-    file = fopen(fichier, "r");
+    file = fopen(fichier, "rb");    // "Envoit des fichiers binaires ou ASCII"
     if(file == NULL) FATAL("fopen");
 
     source = _resoudre_source();    // Récupère l'adresse IP de la source
@@ -192,8 +214,8 @@ void transferer_fichier(const char * fichier, const char * destinataire, int loc
 
     _recuperer_token(localsock, token);    // Envoi une demande au Driver pour récupérer le Token qui le retourne
 
-    // Envoi d'un paquet contenant le caractère urgent 'f' spécifiant le nom du fichier
-    _construire_paquet(filename, 'f', token, source, addr, fichier, strlen(fichier) + 1);
+    // Envoi d'un paquet contenant le caractère urgent 's' spécifiant le nom du fichier
+    _construire_paquet(filename, 's', token, source, addr, fichier, strlen(fichier) + 1);
     cc = send(localsock, filename, PACKET_SIZE, 0);
     if(cc == -1) FATAL("send");
 
@@ -247,9 +269,9 @@ void recuperer(int localsock) {
 }
 
 // Détermine la commande entrée par l'utilisateur et exécute l'action correspondante
-void commande(char * commande, int localsock, struct sockaddr_un * serv) {
+void commande(char * c, int localsock) {
 
-    char * command = strtok(commande, " ");
+    char * command = strtok(c, " ");
 
     if(strcmp(command, "exit") == 0 || strcmp(command, "quit") == 0) exit(0); // Arrêter le programme via une commande sans utiliser CTRL + C
 
@@ -267,8 +289,8 @@ void commande(char * commande, int localsock, struct sockaddr_un * serv) {
             return;
         }
 
-        if(destinataire != NULL) emettre(msg, localsock, serv, destinataire);    // Envoyer le message à une machine du réseau
-        else diffuser(msg, localsock, serv); // Envoyer le message à toutes les machines du réseau
+        if(destinataire != NULL) emettre(msg, localsock, destinataire);    // Envoyer le message à une machine du réseau
+        else diffuser(msg, localsock); // Envoyer le message à toutes les machines du réseau
 
     }
 
@@ -283,7 +305,7 @@ void commande(char * commande, int localsock, struct sockaddr_un * serv) {
             return; 
         }
 
-        transferer_fichier(fichier, destinataire, localsock, serv);
+        transferer_fichier(fichier, destinataire, localsock);
 
     }
 
@@ -294,7 +316,7 @@ void commande(char * commande, int localsock, struct sockaddr_un * serv) {
 }  
 
 // Lit le paquet envoyé et stocke les données importantes à traiter
-static void _lire_paquet(int localsock, char * urgent, char ** contenu) {
+static void _lire_paquet(int localsock, char * urgent, char ** contenu, struct in_addr * source) {
 
     static char paquet[PACKET_SIZE];
     int cc;
@@ -305,11 +327,15 @@ static void _lire_paquet(int localsock, char * urgent, char ** contenu) {
 
     // Les variables sont directement ajustés
     *urgent = paquet[0];
-    *contenu = paquet + URGENT_SIZE + TOKEN_SIZE + ADDR_SIZE;
+    *contenu = paquet + URGENT_SIZE + TOKEN_SIZE + ADDR_SIZE + ADDR_SIZE;
+
+    unsigned long source_long;
+    memcpy(&source_long, paquet + URGENT_SIZE + TOKEN_SIZE, ADDR_SIZE);
+    source->s_addr = (uint32_t) source_long;    // Passage par variable
 
 }
 
-// Mémorise le nom du fichier à recevoir à partir du contenu d'un paquet 'f'
+// Mémorise le nom du fichier à recevoir à partir du contenu d'un paquet 's'
 static void _recevoir_nom_fichier(const char * contenu, char * filename) {
 
     strncpy(filename, contenu, CONTENT_SIZE - 1);   // Initialise filename avec le nom du fichier
@@ -349,53 +375,108 @@ static void _afficher_informations_machines(const char * contenu) {
 
 }
 
+// Envoie un ACK au Driver pour confirmer la réception d'un paquet
+static void _envoyer_ack(int localsock) {
+
+    int cc = send(localsock, "a", 1, 0);
+    if(cc == -1) FATAL("send ack");
+
+}
+
+// Libère le token en envoyant 'f' au Driver
+static void _liberer_token(int localsock) {
+
+    int cc = send(localsock, "f", 1, 0);
+    if(cc == -1) FATAL("send free");
+
+}
+
 // Réceptionne un paquet envoyé par le Driver au Comm
-static void recevoir_paquet(int localsock) {
+static int recevoir_paquet(int localsock) {
 
     char urgent;
     char * contenu;
-    // recevoir_paquet() est une fonction static car elle contient une variable static pour mémoriser le nom du fichier traité entre les appels à recevoir_paquet()
-    static char filename[CONTENT_SIZE] = {0};   // Initialise un tableau avec CONTENT_SIZE zéros
+    struct in_addr source;
 
-    _lire_paquet(localsock, &urgent, &contenu);
+    // recevoir_paquet() est une fonction static car elle contient des variables static pour mémoriser le nom du fichier traité entre les appels à recevoir_paquet()
+    static char filename[CONTENT_SIZE] = {0};   // Initialise un tableau avec CONTENT_SIZE zéros
+    static char message[4096] = {0};    // Initialise un buffer suffisament grand pour reconstituer le message
+    static int len = 0;
+
+    _lire_paquet(localsock, &urgent, &contenu, &source);
+
+    if(urgent == 'f') return 0; // Pas d'affichage d'un nouveau prompt comm>
 
     // Réception du nom du fichier à recevoir dans le premier paquet
-    if(urgent == 'f') {
+    if(urgent == 's') { // send filename
         _recevoir_nom_fichier(contenu, filename);
-        return; // Traitement terminé dans le cas de la réception du premier paquet pour la réception d'un fichier
+        _envoyer_ack(localsock);
+        return 0; // Traitement terminé dans le cas de la réception du premier paquet pour la réception d'un fichier
     }
 
     // Réception d'un paquet concernant les informations sur un hôte de l'anneau
     if(urgent == 'i') {
         _afficher_informations_machines(contenu);
-        return;
+        _envoyer_ack(localsock);
+        return 0; // Traitement terminé dans le cas de la réception du premier paquet pour la réception d'un fichier
     }
 
+    // Réception d'un ACK = notre émission a bien été reçue
+    if(urgent == 'a') {
+        if(!emission_en_cours) _liberer_token(localsock);   // On libère le token si on a reçu le 'a' final après notre 'e'
+        // Si emission_en_cours == true, on attend encore des acks intermédiaires
+        return 0;   // Pas d'affichage d'un nouveau prompt comm>
+    }
+
+    // Réception d'un paquet de données pour un message texte ou un bloc de fichier
     if(urgent == 'u' || urgent == 'e') {
 
-        // Vérifie que le nom de fichier a bien été ajouté : qu'un précédent paquet a été reçu contenant le nom du fichier
-        if(filename[0] == '\0') {
-            printf("Réception d'un paquet de données sans nom de fichier\n");
-            return;
+        // Détermine si c'est un fichier ou un texte qu'on reçoit dans le paquet de données
+        if(filename[0] != '\0') _recevoir_bloc_fichier(contenu, urgent, filename);
+
+        // Cas où c'est un texte
+        else {
+
+            // On reconstitue le message texte
+            int len_paquet = strnlen(contenu, CONTENT_SIZE);
+            if(len + len_paquet < (int)sizeof(message) - 1) {
+                memcpy(message + len, contenu, len_paquet);
+                len += len_paquet;
+            }
+
+            if(urgent == 'e') {
+                message[len] = '\0';
+                printf("\r%s vous a envoyé un message : %s\ncomm>", inet_ntoa(source), message);
+                fflush(stdout);
+
+                // Remise à zéro du buffer pour le prochain message reçu
+                len = 0;
+                message[0] = '\0';
+
+                _envoyer_ack(localsock);
+                return 0;   // Pas d'affichage d'un nouveau prompt comm>
+            }
+
         }
 
-        _recevoir_bloc_fichier(contenu, urgent, filename);
+        _envoyer_ack(localsock);
+        return 0; // Traitement terminé dans le cas de la réception du premier paquet pour la réception d'un fichier
 
     }
 
 }
 
 // Menu permettant à l'utilisateur d'utiliser les fonctions
-void comm(int localsock, struct sockaddr_un * serv) {
+void comm(int localsock) {
 
     char msg[SMAX];
     fd_set readfds;
     int cc;
 
-    while(1) {  // Tant que l'utilisateur ne s'est pas déconnecté = tant que le programme n'a pas été volontairement arrêté
+    printf("comm> ");
+    fflush(stdout); // Nécessaire car sinon le prompt "comm> " n'est pas affiché directement
 
-        printf("comm> ");
-        fflush(stdout); // Nécessaire car sinon le prompt "comm> " n'est pas affiché directement
+    while(1) {  // Tant que l'utilisateur ne s'est pas déconnecté = tant que le programme n'a pas été volontairement arrêté
 
         FD_ZERO(&readfds);
         FD_SET(STDIN_FILENO, &readfds); // Surveille les commandes entrées par l'utilisateur
@@ -409,10 +490,20 @@ void comm(int localsock, struct sockaddr_un * serv) {
         if(FD_ISSET(STDIN_FILENO, &readfds)) {
             if(fgets(msg, SMAX, stdin) == NULL) break;  // Stockage de la commande entrée par l'utilisateur
             msg[strcspn(msg, "\n")] = '\0';  // Retire le \n à la fin de la commande
-            commande(msg, localsock, serv);    // Détermine la commande entrée par l'utilisateur et exécute l'action correspondante
+            commande(msg, localsock);    // Détermine la commande entrée par l'utilisateur et exécute l'action correspondante
+            printf("comm> ");   // Réaffiche le prompt après réception
+            fflush(stdout);
         }
 
-        if(FD_ISSET(localsock, &readfds)) recevoir_paquet(localsock);   // Réception d'un paquet envoyé par le Driver au Comm
+        else if(FD_ISSET(localsock, &readfds)) {
+
+            // Réception d'un paquet envoyé par le Driver au Comm
+            if(recevoir_paquet(localsock)) {
+                printf("comm> ");   // Réaffiche le prompt après réception
+                fflush(stdout);
+            }   
+            
+        }
 
     }
 

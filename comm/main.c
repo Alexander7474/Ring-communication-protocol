@@ -15,11 +15,16 @@ int main() {
   // Déclaration des variables
   int localsock, conn;
   struct sockaddr_un serv;
+  const char * socket_path;
 
   // Structure du serveur
   memset(&serv, 0, sizeof(serv));
   serv.sun_family = AF_UNIX;
-  strncpy(serv.sun_path, UNIX_SOCKET_PATH, sizeof(serv.sun_path) - 1);
+
+  socket_path = getenv("DRIVER_SOCKET_PATH");
+  if(!socket_path) socket_path = UNIX_SOCKET_PATH;
+
+  strncpy(serv.sun_path, socket_path, sizeof(serv.sun_path) - 1);
 
   localsock = socket(AF_UNIX, SOCK_STREAM, 0);
   if(localsock == -1) FATAL("socket");
@@ -28,7 +33,7 @@ int main() {
   conn = connect(localsock, (struct sockaddr *) & serv, sizeof(serv));
   if(conn == -1) FATAL("connect");
 
-  comm(localsock, &serv);
+  comm(localsock);
   close(localsock);
 
   return 0;
