@@ -309,9 +309,12 @@ main(int argc, char *argv[])
 			connect_sock(addr, sockg);
 
 			break;
-		case 'u': // a  
-		case 'a': // f
-		case 'e': // a
+		case 'u':   
+		case 'a': 
+		case 'e': 
+		case 'i': 
+		case 'h': 
+		case 's': 
 			send_sockg(sockcomm, recv_buffer);
 			receiv_sockd(sockcomm, recv_buffer); 
 			skip_buffer(sockg, recv_buffer);
