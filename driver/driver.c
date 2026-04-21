@@ -114,8 +114,8 @@ dump_message(char *buffer)
 	printf("Message: %s\n", buffer);
 	printf("Flag: %c\n", get_flag(buffer));
 	printf("Token: %s\n", token);
-	printf("Source address: %ld\n", src_addr);
-	printf("Destination address: %ld\n", addr);
+	printf("Source address: %lu\n", src_addr);
+	printf("Destination address: %lu\n", addr);
 	printf("Data: %s\n", data);
 	printf("Message dump end ------------------\n");
 }
@@ -221,4 +221,19 @@ connect_sock(unsigned long addr, int sock)
 	new_addr.sin_port = htons(PORT); // same port as the original connection
 	new_addr.sin_addr.s_addr = addr;
 	connect(sock, (struct sockaddr *)&new_addr, sizeof(new_addr));
+}
+
+/**
+ * is_diffusion_addr - Retourne si oui ou non @addr 
+ * est une address de diffusion
+ * @addr : Adresse à tester
+ * Return : 1 si @addr est une addresse de diffusion, 0 si non 
+ */
+int 
+is_diffusion_addr(unsigned long addr)
+{
+  if(inet_addr(BROADCAST_ADDR) == addr)
+    return 1;
+  else 
+    return 0;
 }

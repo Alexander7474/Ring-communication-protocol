@@ -14,7 +14,6 @@
 #include "../common/ring_buffer.h"
 #include "driver.h"
 
-// server qui se parle a lui meme avec son fils (bizarre)
 int
 main(int argc, char *argv[])
 {
@@ -277,7 +276,7 @@ main(int argc, char *argv[])
 
 	flag_process:
 		// si packet non destiné à la machine
-		if (!is_own_addr(get_addr(recv_buffer))) {
+		if (!is_own_addr(get_addr(recv_buffer)) && !is_diffusion_addr(get_addr(recv_buffer))) {
                         // si packet envoyer par le driver lui même
                         if (!is_own_addr(get_src_addr(recv_buffer))) {
                                 generate_message_buffer(send_buffer);
