@@ -33,8 +33,8 @@
 /**
  * Taille d'un paquet (en octets)
 */
-#define PACKET_SIZE (URGENT_SIZE + TOKEN_SIZE + ADDR_SIZE + ADDR_SIZE + CONTENT_SIZE)   // 1 + 4 + 8 + 8 + 32 = 53 octets (taille d'u
-#define SMAX (FLAG_SIZE + TOKEN_SIZE + ADDR_SIZE + ADDR_SRC_SIZE + CONTENT_SIZE)   // 1 + 4 + 4 + 32 = 41 octets (taille d'un paquet)
+#define PACKET_SIZE (URGENT_SIZE + TOKEN_SIZE + ADDR_SIZE + ADDR_SIZE + CONTENT_SIZE)   // 1 + 4 + 8 + 8 + 32 = 53 octets (taille d'un paquet)
+#define SMAX (FLAG_SIZE + TOKEN_SIZE + ADDR_SIZE + ADDR_SRC_SIZE + CONTENT_SIZE)   // 1 + 4 + 8 + 8 + 32 = 53 octets (taille d'un paquet)
 
 /**
 * Taille de la file d'attente d'hosts
