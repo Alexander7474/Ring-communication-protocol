@@ -52,6 +52,9 @@ send_connection_message(int sockg, unsigned long dest_addr,
 int
 is_own_addr(unsigned long addr);
 
+int 
+is_diffusion_addr(unsigned long addr);
+
 unsigned long
 get_sockaddr(int sock);
 
