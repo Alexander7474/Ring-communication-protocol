@@ -5,10 +5,12 @@
 #include <arpa/inet.h>
 #include <sys/socket.h>
 #include <unistd.h>
+#include <sys/un.h>
 
-#include "comm.h"
 #include "../common/config.h"
 #include "../common/error.h"
+
+#include "shell.h"
 
 int main() {
 
