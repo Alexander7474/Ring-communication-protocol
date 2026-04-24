@@ -13,14 +13,16 @@ Le driver peut envoyer des données à comm à travers un unix socket quand les 
 
 ### Comm
 
-Le but sera de faire un programme "user-friendy" dans le style d'un interpréteur de commandes où l'utilisateur enverra les messages / informations qu'il souhaite envoyer, et recevra les messages destinés aux utilisateurs de l'anneau.
+Le comm est un interpréteur de commandes qui utilise une socket `localsock` pour parler à son driver et transmettre des paquets dans l'anneau.  
+Les commandes utilisables sont :
 
-- "help" renverra la liste des commandes possibles
-
-	-> echo [MESSAGE] [ADRESSE | HOSTNAME] : envoit un message à toutes les machines de l'anneau ou à un utilisateur spécifique     
-	-> file	[FICHIER] [ADRESSE | HOSTNAME] : envoit un fichier à toutes les machines de l'anneau ou à un utilisateur spécifique     
-	-> hosts : renvoie toutes les informations sur les clients de l'anneau     
-	-> whoami : renvoie les informations qui me sont concernées sur l'anneau     
+- help : renvoit la liste des commandes utilisables
+- exit : ferme le programme,
+- quit : ferme le programme,
+- echo [MESSAGE]: envoie un message à toutes les machines de l'anneau,  
+- echo [ADRESSE IP] [MESSAGE] : envoie un message à une machine connectée à l'anneau à partir de son adresse IP
+- file [ADRESSE IP] [FICHIER] : envoie un fichier à une machine connectée à l'anneau à partir de son adresse IP 
+- hosts : renvoie toutes les informations sur les clients de l'anneau        
 
 ### Circulation du token 
 
@@ -34,12 +36,13 @@ Comm communique avec le driver en utilisant un socket UNIX. Il peut demander le 
 
 Chaque driver possède un socket prêt à accueillir une nouvelle machine dans l'anneau. Dès qu'un driver recoit une demande sur newsock il connecte le sockg du nouvelle arrivant à sont sockd et envoie un message marqué 'c' (connection) en bout de l'anneau pour que la dernière machine se connect au sockd du nouvelle arrivant.
 
-#### Structure des messages entre driver
+#### Structure des messages entre driver (en octet)
 
-| caractère urgent (8 bits)| token (32 bits) | addr source (64 bits) | addr (64 bits) | contenue (256 bits)
+| Flag| Token | Adresse IP Source | Adresse IP Destination | Contenu 
 |:--------  |:--------:     | --------: | :----: | :-----:|
+|1|4|4|4|128|
 
-#### Carcatère urgent entre comm et driver
+#### Caractère urgent entre comm et driver
 
 | caractère | signification | Usage     |
 |:--------  |:--------:     | --------: |
@@ -53,9 +56,10 @@ Chaque driver possède un socket prêt à accueillir une nouvelle machine dans l
 |u| used | Marque un message comme utilisé, le driver doit simplement le faire circuler si il ne lui est pas destiné  |
 |e| end |  Marque le dernier message d'une communication, le driver doit renvoyer le token en circulation après |
 |a| acknowledgement |  Marque la reception d'un message |
-|c|connection| Marque une demande de connection pour un driver 
+|c|connection| Marque une demande de connection pour un driver |
+|h|hosts| Marque une demande d'information pour chaque machine de l'anneau après l'utilisation de la commande "hosts" sur un comm |
+|s|send filename| Marque l'envoi à la machine de destination du nom de fichier pour que la machine puisse enregistrer le fichier reçu avec le même nom que celui envoyé, le fichier reçu sera stocké dans le répertoire où le programme comm aura été exécuté. |
 
 #### Idée en plus
 
-- Faire des logs
-- Chiffré l'anneau 
+- Chiffrer l'anneau 
