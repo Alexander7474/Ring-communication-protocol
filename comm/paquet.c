@@ -272,7 +272,7 @@ void recevoir_paquet(int localsock) {
         for(int i = 0; i < HOST_MAX_MACHINES; i++) {
 
             uint32_t addr_check = 0;
-            memcpy(&addr_check, contenu + i * HOST_NAME_SIZE, ADDR_SIZE);
+            memcpy(&addr_check, contenu + i * HOST_ENTRY_SIZE, ADDR_SIZE);
 
             if(addr_check == 0) {
                 // Emplacement libre trouvé
