@@ -244,20 +244,20 @@ main(int argc, char *argv[])
 				pop_rg_buff(&waiting_hosts,
 				            &sockd); // recup de premier
 				                     // host de la file
-				unsigned long nsockd_addr = get_sockaddr(sockd);
+				uint32_t nsockd_addr = get_sockaddr(sockd);
 				sockg = socket(AF_INET, SOCK_STREAM, 0);
 				connect_sock(nsockd_addr, sockg);
 				continue;
 			}
 
-			unsigned long old_sockd_addr = get_sockaddr(sockd);
+			uint32_t old_sockd_addr = get_sockaddr(sockd);
 
 			shutdown(sockd, SHUT_WR);
 			close(sockd);
 			pop_rg_buff(&waiting_hosts,
 			            &sockd); // recup de premier host de
 			                     // la file
-			unsigned long new_sockd_addr = get_sockaddr(sockd);
+			uint32_t new_sockd_addr = get_sockaddr(sockd);
 			// envoie du message 'c'
 			send_connection_message(sockg, old_sockd_addr,
 			                        new_sockd_addr, recv_buffer);
@@ -299,9 +299,9 @@ main(int argc, char *argv[])
 		switch (flag) {
 		case 'c':
 			// copy de l'addresse de connection
-			unsigned long addr;
+			uint32_t addr;
 			memcpy(&addr, recv_buffer + DATA_OFFSET,
-			       sizeof(unsigned long));
+			       sizeof(uint32_t));
 
 			close(sockg);
 			sockg = socket(AF_INET, SOCK_STREAM, 0);

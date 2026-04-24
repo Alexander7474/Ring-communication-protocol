@@ -18,9 +18,9 @@
 /**
  * Taille du token (en octets)
 */
-#define ADDR_SRC_SIZE 4 // 32 bits
+#define ADDR_SRC_SIZE 4
 #define ADDR_SRC_OFFSET (FLAG_SIZE+TOKEN_SIZE)
-#define ADDR_SIZE 4 // 32 bits
+#define ADDR_SIZE 4     // 32 bits
 #define ADDR_OFFSET (FLAG_SIZE+TOKEN_SIZE+ADDR_SRC_SIZE)
 
 /**
