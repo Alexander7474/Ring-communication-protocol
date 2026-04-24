@@ -63,17 +63,17 @@ get_data(char *buffer, char *data)
 unsigned long
 get_addr(char *buffer)
 {
-	unsigned long addr;
-	memcpy(&addr, buffer + ADDR_OFFSET, sizeof(unsigned long));
-	return addr;
+    uint32_t addr = 0;
+    memcpy(&addr, buffer + ADDR_OFFSET, ADDR_SIZE);
+    return (unsigned long) addr;
 }
 
 unsigned long
 get_src_addr(char *buffer)
 {
-	unsigned long addr;
-	memcpy(&addr, buffer + ADDR_SRC_OFFSET, sizeof(unsigned long));
-	return addr;
+    uint32_t addr = 0;
+    memcpy(&addr, buffer + ADDR_SRC_OFFSET, ADDR_SIZE);
+    return (unsigned long) addr;
 }
 
 void
@@ -91,13 +91,15 @@ set_flag(char flag, char *buffer)
 void
 set_addr(unsigned long addr, char *buffer)
 {
-	memcpy(buffer + ADDR_OFFSET, &addr, sizeof(unsigned long));
+    uint32_t addr32 = (uint32_t) addr;
+    memcpy(buffer + ADDR_OFFSET, &addr32, ADDR_SIZE);
 }
 
 void
 set_src_addr(unsigned long addr, char *buffer)
 {
-	memcpy(buffer + ADDR_SRC_OFFSET, &addr, sizeof(unsigned long));
+    uint32_t addr32 = (uint32_t) addr;
+    memcpy(buffer + ADDR_SRC_OFFSET, &addr32, ADDR_SIZE);
 }
 
 void
@@ -173,19 +175,19 @@ int
 send_connection_message(int sockg, unsigned long dest_addr,
                         unsigned long new_host_addr, char *buffer)
 {
-	if (get_flag(buffer) != 'f')
-		return -1;
+    if (get_flag(buffer) != 'f')
+        return -1;
 
-	char send_buffer[SMAX];
-	memcpy(send_buffer, buffer, SMAX);
+    char send_buffer[SMAX];
+    memcpy(send_buffer, buffer, SMAX);
 
-	memcpy(send_buffer + DATA_OFFSET, &new_host_addr,
-	       sizeof(unsigned long));
-	increment_token(send_buffer);
-	set_flag('c', send_buffer);
-	set_addr(dest_addr, send_buffer);
+    uint32_t new_host_addr32 = (uint32_t) new_host_addr;
+    memcpy(send_buffer + DATA_OFFSET, &new_host_addr32, ADDR_SIZE);  // ← ADDR_SIZE au lieu de sizeof(unsigned long)
+    increment_token(send_buffer);
+    set_flag('c', send_buffer);
+    set_addr(dest_addr, send_buffer);
 
-	return write(sockg, send_buffer, sizeof(send_buffer));
+    return write(sockg, send_buffer, sizeof(send_buffer));
 }
 
 /**

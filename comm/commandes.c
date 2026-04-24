@@ -17,7 +17,7 @@
 void emettre(const char * msg, int localsock, const char * destinataire) {
 
     envoyer(localsock, msg, destinataire);
-    printf("Le message %s a bien été envoyé à %s !\n", msg, destinataire);
+    printf("Le message a bien été envoyé à %s !\n", destinataire);
 
 }
 

@@ -26,8 +26,8 @@
 /**
  * Taille du contenu (en octets)
 */
-#define CONTENT_SIZE 32 // 256 bits, donc 32 octets car 256 / 8 (car 1 octet = 8 bytes) = 32
-#define DATA_SIZE 32 // 256 bits, donc 32 octets car 256 / 8 (car 1 octet = 8 bytes) = 32
+#define CONTENT_SIZE 128
+#define DATA_SIZE 128
 #define DATA_OFFSET (FLAG_SIZE+TOKEN_SIZE+ADDR_SIZE+ADDR_SRC_SIZE)
 
 /**
@@ -35,6 +35,13 @@
 */
 #define PACKET_SIZE (URGENT_SIZE + TOKEN_SIZE + ADDR_SIZE + ADDR_SIZE + CONTENT_SIZE)   // 1 + 4 + 4 + 4 + 32 = 45 octets (taille d'un paquet)
 #define SMAX (FLAG_SIZE + TOKEN_SIZE + ADDR_SIZE + ADDR_SRC_SIZE + CONTENT_SIZE)   // 1 + 4 + 4 + 4 + 32 = 45 octets (taille d'un paquet)
+
+/**
+ * Taille des informations d'une machine dans un paquet 'h' (hosts)
+ */
+#define HOST_NAME_SIZE 16   // 16 octets pour le hostname 
+#define HOST_ENTRY_SIZE (ADDR_SIZE + HOST_NAME_SIZE)    // 4 + 16 = 20 octets par machine
+#define HOST_MAX_MACHINES (CONTENT_SIZE / HOST_ENTRY_SIZE)  // 128 / 20 (hostname + IP) = 6 machines max
 
 /**
 * Taille de la file d'attente d'hosts

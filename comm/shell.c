@@ -21,8 +21,8 @@ void help() {
     printf("- exit : ferme le programme.\n");
     printf("- quit : ferme le programme.\n");
     printf("- echo [MESSAGE] : envoie un message à toutes les machines connectées à l'anneau si seul le message est fourni.\n");
-    printf("- echo [ADRESSE IP | HOSTNAME] [MESSAGE] : envoie un message à une machine connectée à l'anneau à partir de son adresse IP ou de son hostname.\n");
-    printf("- file [ADRESSE IP | HOSTNAME] [FICHIER] : envoie un fichier à une machine connectée à l'anneau à partir de son adresse IP ou de son hostname.\n");
+    printf("- echo [ADRESSE IP] [MESSAGE] : envoie un message à une machine connectée à l'anneau à partir de son adresse IP.\n");
+    printf("- file [ADRESSE IP] [FICHIER] : envoie un fichier à une machine connectée à l'anneau à partir de son adresse IP.\n");
     printf("- hosts : affiche les informations (hostname et adresse IP) concernant toutes les machines connectées à l'anneau.\n");
 
 }
@@ -33,26 +33,26 @@ static void echo(int localsock) {
     struct in_addr test;
 
     // Récupération des paramètres de la commande
-    char * premier = strtok(NULL, " "); // Adresse IP / Hostname OU début du message si on est dans le cas d'une diffusion
+    char * premier = strtok(NULL, " "); // Adresse IP OU début du message si on est dans le cas d'une diffusion
     char * reste = strtok(NULL, "");    // Message OU le reste du message
 
     // Vérifie la syntaxe de la commande
     if(premier == NULL) {
-        printf("Usage: echo [MESSAGE] | echo [ADRESSE IP | HOSTNAME] [MESSAGE]\n");
+        printf("Usage: echo [MESSAGE] | echo [ADRESSE IP] [MESSAGE]\n");
         return;
     }
 
-    // Vérifie si le premier argument est une IP valide
+    // Vérifie si le premier argument est une adresse IP valide
     if(inet_pton(AF_INET, premier, &test) == 1) {
         if(reste == NULL) {
-            printf("Usage: echo [ADRESSE IP | HOSTNAME] [MESSAGE]\n");
+            printf("Usage: echo [ADRESSE IP] [MESSAGE]\n");
             return;
         }
         emettre(reste, localsock, premier);
     } 
         
     else {
-        // Le premier argument n'est pas une IP ou le hostname donc c'est une diffusion et on concatène tout le message
+        // Le premier argument n'est pas une adresse IP donc c'est une diffusion et on concatène tout le message
         if(reste != NULL) *(reste - 1) = ' ';
         diffuser(premier, localsock);
     }
@@ -78,22 +78,22 @@ static void file(int localsock) {
 // Détermine la commande entrée par l'utilisateur et exécute l'action correspondante
 void commande(char * c, int localsock) {
 
-    char * command = strtok(c, " ");    // La variable ne peut pas s'appeller "commande" car c'est le nom de la fonction ?
+    char * commande_utilisateur = strtok(c, " ");    // La variable ne peut pas s'appeller "commande" car c'est le nom de la fonction
 
     // Arrête le programme via une commande sans utiliser CTRL + C
-    if(strcmp(command, "exit") == 0 || strcmp(command, "quit") == 0) exit(0);
+    if(strcmp(commande_utilisateur, "exit") == 0 || strcmp(commande_utilisateur, "quit") == 0) exit(0);
 
     // Affiche les commandes utilisables via l'interpréteur de commandes
-    else if(strcmp(command, "help") == 0) help();   // Simplification possible en mettant cette condition dans le else ?
+    else if(strcmp(commande_utilisateur, "help") == 0) help();   // Simplification possible en mettant cette condition dans le else ?
 
     // Envoi d'un message à une machine spécifique de l'anneau OU diffuse le message à toutes les machines connectées à l'anneau
-    else if(strcmp(command, "echo") == 0) echo(localsock);
+    else if(strcmp(commande_utilisateur, "echo") == 0) echo(localsock);
 
     // Transfère un fichier à une machine spécifique de l'anneau
-    else if(strcmp(command, "file") == 0) file(localsock);
+    else if(strcmp(commande_utilisateur, "file") == 0) file(localsock);
 
     // Récupère les informations (IP + Hostname) de toutes les machines connectées à l'anneau
-    else if(strcmp(command, "hosts") == 0) recuperer(localsock);
+    else if(strcmp(commande_utilisateur, "hosts") == 0) recuperer(localsock);
 
     // Affiche les commandes utilisables via l'interpréteur de commandes si la commande n'est pas reconnue
     else help();

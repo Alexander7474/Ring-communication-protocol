@@ -54,14 +54,14 @@ static void recevoir_bloc_fichier(const char * contenu, char urgent, char * file
 static void afficher_informations_machines(const char * contenu) {
 
     struct in_addr addr;    // Adresse IP de la machine
-    char hostname[5];  // Hostname de la machine
+    char hostname[HOST_NAME_SIZE];  // Hostname de la machine
     char ip_str[INET_ADDRSTRLEN];
 
     memcpy(&addr.s_addr, contenu, ADDR_SIZE);   // 4 octets pour l'adresse IP 
 
     // Récupération du hostname
-    memcpy(hostname, contenu + ADDR_SIZE, 4);  // 4 octets pour le hostname
-    hostname[4] = '\0';    // Fin des informations récupérées
+    memcpy(hostname, contenu + ADDR_SIZE, HOST_NAME_SIZE);  // 4 octets pour le hostname
+    hostname[HOST_NAME_SIZE - 1] = '\0';    // Fin des informations récupérées
 
     inet_ntop(AF_INET, &addr, ip_str, sizeof(ip_str));
     printf("\r  %-16s %s\n", ip_str, hostname); // Affichage propre et régulier
@@ -246,14 +246,13 @@ void recevoir_paquet(int localsock) {
             printf("\r  %-16s %-28s\n", "Adresse IP", "Hostname");
             printf("  ─────────────────────────────────────────────\n");
 
-            // Lire les infos de chaque machine dans le contenu (8 octets par machine)
-            int nb_machines = CONTENT_SIZE / (ADDR_SIZE + 4);
-            for(int i = 0; i < nb_machines; i++) {
+            // Lire les infos de chaque machine dans le contenu (20 octets par machine)
+            for(int i = 0; i < HOST_MAX_MACHINES; i++) {
 
                 uint32_t addr_check = 0;
-                memcpy(&addr_check, contenu + i * (ADDR_SIZE + 4), ADDR_SIZE);
+                memcpy(&addr_check, contenu + i * HOST_ENTRY_SIZE, ADDR_SIZE);
                 if(addr_check == 0) break;
-                afficher_informations_machines(contenu + i * (ADDR_SIZE + 4));
+                afficher_informations_machines(contenu + i * HOST_ENTRY_SIZE);
 
             }
 
@@ -265,21 +264,20 @@ void recevoir_paquet(int localsock) {
         }
 
         // Sinon ajouter mes infos dans le contenu et faire circuler le paquet
-        char hostname[5] = {0};
-        gethostname(hostname, 4);  // 4 octets max
-        hostname[4] = '\0';
+        char hostname[HOST_NAME_SIZE] = {0};
+        gethostname(hostname, HOST_NAME_SIZE - 1);  // -1 pour garder le '\0'
+        hostname[HOST_NAME_SIZE - 1] = '\0';
 
         // Trouver le premier emplacement libre (IP à 0)
-        int nb_machines_max = CONTENT_SIZE / (ADDR_SIZE + 4);
-        for(int i = 0; i < nb_machines_max; i++) {
+        for(int i = 0; i < HOST_MAX_MACHINES; i++) {
 
             uint32_t addr_check = 0;
-            memcpy(&addr_check, contenu + i * (ADDR_SIZE + 4), ADDR_SIZE);
+            memcpy(&addr_check, contenu + i * HOST_NAME_SIZE, ADDR_SIZE);
 
             if(addr_check == 0) {
                 // Emplacement libre trouvé
-                memcpy(contenu + i * (ADDR_SIZE + 4), &ma_source.s_addr, ADDR_SIZE);
-                memcpy(contenu + i * (ADDR_SIZE + 4) + ADDR_SIZE, hostname, 4);
+                memcpy(contenu + i * HOST_ENTRY_SIZE, &ma_source.s_addr, ADDR_SIZE);
+                memcpy(contenu + i * HOST_ENTRY_SIZE + ADDR_SIZE, hostname, HOST_NAME_SIZE);
                 break;
             }
 
