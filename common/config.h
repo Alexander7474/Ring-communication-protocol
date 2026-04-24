@@ -33,8 +33,8 @@
 /**
  * Taille d'un paquet (en octets)
 */
-#define PACKET_SIZE (URGENT_SIZE + TOKEN_SIZE + ADDR_SIZE + ADDR_SIZE + CONTENT_SIZE)   // 1 + 4 + 4 + 4 + 32 = 45 octets (taille d'un paquet)
-#define SMAX (FLAG_SIZE + TOKEN_SIZE + ADDR_SIZE + ADDR_SRC_SIZE + CONTENT_SIZE)   // 1 + 4 + 4 + 4 + 32 = 45 octets (taille d'un paquet)
+#define PACKET_SIZE (URGENT_SIZE + TOKEN_SIZE + ADDR_SIZE + ADDR_SIZE + CONTENT_SIZE)   // 1 + 4 + 4 + 4 + 128 = 141 octets (taille d'un paquet)
+#define SMAX (FLAG_SIZE + TOKEN_SIZE + ADDR_SIZE + ADDR_SRC_SIZE + CONTENT_SIZE)   // 1 + 4 + 4 + 4 + 32 = 141 octets (taille d'un paquet)
 
 /**
  * Taille des informations d'une machine dans un paquet 'h' (hosts)

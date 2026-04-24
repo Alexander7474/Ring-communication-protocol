@@ -60,6 +60,7 @@ void transferer_fichier(const char * fichier, const char * destinataire, int loc
     }
 
     fclose(file);
+
     printf("Le fichier %s a bien été envoyé à %s !\n", fichier, destinataire);
 
 }

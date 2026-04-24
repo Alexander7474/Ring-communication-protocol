@@ -279,12 +279,10 @@ main(int argc, char *argv[])
 		if (!is_own_addr(get_addr(recv_buffer)) && !is_diffusion_addr(get_addr(recv_buffer))) {
                         // si packet envoyer par le driver lui même
                         if (!is_own_addr(get_src_addr(recv_buffer))) {
-                                generate_message_buffer(send_buffer);
-                                clock_gettime(CLOCK_MONOTONIC, &last_recv);
+                                skip_buffer(sockg, recv_buffer);
 #ifdef DEBUG
                                 printf("Token regénéré\n");
 #endif
-                                send_sockg(sockg, send_buffer);
                                 continue;
                         }
 
