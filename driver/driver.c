@@ -173,11 +173,11 @@ int
 send_connection_message(int sockg, uint32_t dest_addr,
                         uint32_t new_host_addr, char *buffer)
 {
-	if (get_flag(buffer) != 'f')
-		return -1;
+    if (get_flag(buffer) != 'f')
+        return -1;
 
-	char send_buffer[SMAX];
-	memcpy(send_buffer, buffer, SMAX);
+    char send_buffer[SMAX];
+    memcpy(send_buffer, buffer, SMAX);
 
 	memcpy(send_buffer + DATA_OFFSET, &new_host_addr,
 	       sizeof(uint32_t));
@@ -185,7 +185,7 @@ send_connection_message(int sockg, uint32_t dest_addr,
 	set_flag('c', send_buffer);
 	set_addr(dest_addr, send_buffer);
 
-	return write(sockg, send_buffer, sizeof(send_buffer));
+    return write(sockg, send_buffer, sizeof(send_buffer));
 }
 
 /**
