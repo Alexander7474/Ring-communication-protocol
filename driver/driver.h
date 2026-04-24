@@ -2,6 +2,7 @@
 #define DRIVER_H
 
 #include "../common/config.h"
+#include <stdint.h>
 
 void
 send_sockg(int sock, char *msg);
@@ -22,15 +23,15 @@ void
 set_flag(char flag, char *buffer);
 
 void
-set_addr(unsigned long addr, char *buffer);
+set_addr(uint32_t addr, char *buffer);
 
 void
-set_src_addr(unsigned long addr, char *buffer);
+set_src_addr(uint32_t addr, char *buffer);
 
-unsigned long
+uint32_t
 get_addr(char *buffer);
 
-unsigned long
+uint32_t
 get_src_addr(char *buffer);
 
 void
@@ -46,19 +47,19 @@ int
 skip_buffer(int sock, char *buffer);
 
 int
-send_connection_message(int sockg, unsigned long dest_addr,
-                        unsigned long new_host_addr, char *buffer);
+send_connection_message(int sockg, uint32_t dest_addr,
+                        uint32_t new_host_addr, char *buffer);
 
 int
-is_own_addr(unsigned long addr);
+is_own_addr(uint32_t addr);
 
 int 
-is_diffusion_addr(unsigned long addr);
+is_diffusion_addr(uint32_t addr);
 
-unsigned long
+uint32_t
 get_sockaddr(int sock);
 
 void
-connect_sock(unsigned long addr, int sock);
+connect_sock(uint32_t addr, int sock);
 
 #endif // !DRIVER_H

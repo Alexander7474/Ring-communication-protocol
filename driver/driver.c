@@ -60,19 +60,19 @@ get_data(char *buffer, char *data)
 	memcpy(data, buffer + DATA_OFFSET, DATA_SIZE);
 }
 
-unsigned long
+uint32_t
 get_addr(char *buffer)
 {
-	unsigned long addr;
-	memcpy(&addr, buffer + ADDR_OFFSET, sizeof(unsigned long));
+	uint32_t addr;
+	memcpy(&addr, buffer + ADDR_OFFSET, sizeof(uint32_t));
 	return addr;
 }
 
-unsigned long
+uint32_t
 get_src_addr(char *buffer)
 {
-	unsigned long addr;
-	memcpy(&addr, buffer + ADDR_SRC_OFFSET, sizeof(unsigned long));
+	uint32_t addr;
+	memcpy(&addr, buffer + ADDR_SRC_OFFSET, sizeof(uint32_t));
 	return addr;
 }
 
@@ -89,15 +89,15 @@ set_flag(char flag, char *buffer)
 }
 
 void
-set_addr(unsigned long addr, char *buffer)
+set_addr(uint32_t addr, char *buffer)
 {
-	memcpy(buffer + ADDR_OFFSET, &addr, sizeof(unsigned long));
+	memcpy(buffer + ADDR_OFFSET, &addr, sizeof(uint32_t));
 }
 
 void
-set_src_addr(unsigned long addr, char *buffer)
+set_src_addr(uint32_t addr, char *buffer)
 {
-	memcpy(buffer + ADDR_SRC_OFFSET, &addr, sizeof(unsigned long));
+	memcpy(buffer + ADDR_SRC_OFFSET, &addr, sizeof(uint32_t));
 }
 
 void
@@ -105,8 +105,8 @@ dump_message(char *buffer)
 {
 	char token[TOKEN_SIZE + 1], data[DATA_SIZE + 1];
 	get_token(buffer, token);
-	unsigned long addr = get_addr(buffer);
-	unsigned long src_addr = get_src_addr(buffer);
+	uint32_t addr = get_addr(buffer);
+	uint32_t src_addr = get_src_addr(buffer);
 	get_data(buffer, data);
 	token[TOKEN_SIZE] = '\0';
 	data[DATA_SIZE] = '\0';
@@ -114,8 +114,8 @@ dump_message(char *buffer)
 	printf("Message: %s\n", buffer);
 	printf("Flag: %c\n", get_flag(buffer));
 	printf("Token: %s\n", token);
-	printf("Source address: %lu\n", src_addr);
-	printf("Destination address: %lu\n", addr);
+	printf("Source address: %u\n", src_addr);
+	printf("Destination address: %u\n", addr);
 	printf("Data: %s\n", data);
 	printf("Message dump end ------------------\n");
 }
@@ -131,7 +131,7 @@ skip_buffer(int sock, char *buffer)
 }
 
 int
-is_own_addr(unsigned long addr)
+is_own_addr(uint32_t addr)
 {
 	struct ifaddrs *ifaddr, *ifa;
 	if (getifaddrs(&ifaddr) == -1) {
@@ -170,8 +170,8 @@ is_own_addr(unsigned long addr)
  * Return : 1 si ok, 0 > si non ok
  */
 int
-send_connection_message(int sockg, unsigned long dest_addr,
-                        unsigned long new_host_addr, char *buffer)
+send_connection_message(int sockg, uint32_t dest_addr,
+                        uint32_t new_host_addr, char *buffer)
 {
 	if (get_flag(buffer) != 'f')
 		return -1;
@@ -180,7 +180,7 @@ send_connection_message(int sockg, unsigned long dest_addr,
 	memcpy(send_buffer, buffer, SMAX);
 
 	memcpy(send_buffer + DATA_OFFSET, &new_host_addr,
-	       sizeof(unsigned long));
+	       sizeof(uint32_t));
 	increment_token(send_buffer);
 	set_flag('c', send_buffer);
 	set_addr(dest_addr, send_buffer);
@@ -194,7 +194,7 @@ send_connection_message(int sockg, unsigned long dest_addr,
  *
  * Return : Adresse dans sockaddr_in.sin_addr.s_addr
  */
-unsigned long
+uint32_t
 get_sockaddr(int sock)
 {
 	struct sockaddr_in addr;
@@ -213,7 +213,7 @@ get_sockaddr(int sock)
  * @sock : socket
  */
 void
-connect_sock(unsigned long addr, int sock)
+connect_sock(uint32_t addr, int sock)
 {
 	struct sockaddr_in new_addr;
 	memset(&new_addr, 0, sizeof(new_addr));
@@ -230,7 +230,7 @@ connect_sock(unsigned long addr, int sock)
  * Return : 1 si @addr est une addresse de diffusion, 0 si non 
  */
 int 
-is_diffusion_addr(unsigned long addr)
+is_diffusion_addr(uint32_t addr)
 {
   if(inet_addr(BROADCAST_ADDR) == addr)
     return 1;
