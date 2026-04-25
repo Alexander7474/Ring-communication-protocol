@@ -5,7 +5,6 @@ BasedOnStyle: LLVM
 
 # Indentation
 IndentWidth:                  8
-UseTab:                       ForIndentation
 TabWidth:                     8
 ContinuationIndentWidth:      8
 
