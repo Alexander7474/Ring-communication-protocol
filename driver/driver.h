@@ -62,4 +62,10 @@ get_sockaddr(int sock);
 void
 connect_sock(uint32_t addr, int sock);
 
+int 
+unix_socket_healthcheck(int sock);
+
+int 
+inet_socket_healthcheck(int sock);
+
 #endif // !DRIVER_H

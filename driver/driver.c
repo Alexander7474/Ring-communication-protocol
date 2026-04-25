@@ -236,3 +236,21 @@ is_diffusion_addr(uint32_t addr)
         else
                 return 0;
 }
+
+/**
+ * unix_socket_healthcheck - Verifie la santé d'un socket sans 
+ * perturber la communication
+ * @sock : Socket à vérifier 
+ * Return : 1 si le socket est utilisable, 0 si non 
+ */
+int 
+unix_socket_healthcheck(int sock)
+{
+
+}
+
+int 
+inet_socket_healthcheck(int sock)
+{
+
+}

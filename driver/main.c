@@ -47,7 +47,7 @@ main(int argc, char *argv[])
         strcat(cmd, UNIX_SOCKET_PATH);
         cc = system(cmd);
         if(cc < 0)
-                printf("Error while deleting sock.d");
+                printf("Error while deleting localsock.sock");
         servcomm.sun_family = AF_UNIX;
         const char *socket_path = getenv("DRIVER_SOCKET_PATH");
         if (!socket_path)
@@ -110,11 +110,14 @@ main(int argc, char *argv[])
                 if (activity < 0)
                         FATAL("activity");
 
+                if(sockcomm < 0)
+                        comm_request = 0;
+
                 //
                 // Gestion des nouveaux arrivants sur comm et d
                 //
 
-                if (FD_ISSET(newsockd, &readfds)) {
+                if (newsockd > 0 && FD_ISSET(newsockd, &readfds)) {
 #ifdef DEBUG
                         printf("Sockd nouvelle connection !\n");
 #endif
@@ -135,7 +138,7 @@ main(int argc, char *argv[])
                         }
                 }
 
-                if (FD_ISSET(newsockcomm, &readfds) && sockcomm <= 0) {
+                if (newsockcomm > 0 && sockcomm <= 0 && FD_ISSET(newsockcomm, &readfds)) {
 #ifdef DEBUG
                         printf("Sockcomm nouvelle connection !\n");
 #endif
@@ -149,13 +152,13 @@ main(int argc, char *argv[])
                 // Reception des données sur les socket d et comm
                 //
 
-                if (FD_ISSET(sockd, &readfds)) {
+                if (sockd > 0 && FD_ISSET(sockd, &readfds)) {
                         receiv_sockd(sockd, recv_buffer);
                         data_recv = 1;
                         clock_gettime(CLOCK_MONOTONIC, &last_recv);
                 }
 
-                if (FD_ISSET(sockcomm, &readfds)) {
+                if (sockcomm > 0 && FD_ISSET(sockcomm, &readfds)) {
                         cc = read(sockcomm, read_buffer, sizeof(char) * SMAX);
                         if (cc <= 0){
                                 close(sockcomm);
@@ -271,7 +274,7 @@ main(int argc, char *argv[])
                         // envoie du message 'c'
                         send_connection_message(sockg, old_sockd_addr,
                                                 new_sockd_addr, recv_buffer);
-                } else if (comm_request >= 1) {
+                } else if (comm_request >= 1 && sockcomm > 0) {
                         send_sockg(sockcomm, recv_buffer);
                         receiv_sockd(sockcomm, recv_buffer);
                         skip_buffer(sockg, recv_buffer);
@@ -322,9 +325,12 @@ main(int argc, char *argv[])
                 case 'i':
                 case 'h':
                 case 's':
-                        send_sockg(sockcomm, recv_buffer);
-                        receiv_sockd(sockcomm, recv_buffer);
-                        skip_buffer(sockg, recv_buffer);
+                        if(sockcomm > 0){
+                                send_sockg(sockcomm, recv_buffer);
+                                receiv_sockd(sockcomm, recv_buffer);
+                                skip_buffer(sockg, recv_buffer);
+                        }
+                
                         break;
                 default:
                         FATAL("Unknow flag wtf\n");
@@ -334,6 +340,7 @@ main(int argc, char *argv[])
 
         close(sockd);
         close(sockg);
+        close(sockcomm);
 
         exit(0);
         return 0;
