@@ -64,18 +64,19 @@
 #define BROADCAST_ADDR "0.0.0.0"
 
 /**
+ * Chemin où stocker la socket Unix qui est un fichier local
+*/
+#define UNIX_SOCKET_PATH "/tmp/localsock.sock"
+
+/**
  * Temps maximal d'attente avant de regénérer le token
 */
 #ifndef DEBUG
 #define MAX_WAIT 10
 #endif
+
 #ifdef DEBUG
 #define MAX_WAIT 3
 #endif 
-
-/**
- * Chemin où stocker la socket Unix qui est un fichier local
-*/
-#define UNIX_SOCKET_PATH "/tmp/localsock.sock"
 
 #endif

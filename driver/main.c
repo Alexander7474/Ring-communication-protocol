@@ -45,7 +45,9 @@ main(int argc, char *argv[])
         // socket d'ecoute unix comm
         char cmd[64] = "rm ";
         strcat(cmd, UNIX_SOCKET_PATH);
-        system(cmd);
+        cc = system(cmd);
+        if(cc < 0)
+                printf("Error while deleting sock.d");
         servcomm.sun_family = AF_UNIX;
         const char *socket_path = getenv("DRIVER_SOCKET_PATH");
         if (!socket_path)
