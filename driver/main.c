@@ -149,13 +149,22 @@ main(int argc, char *argv[])
                 }
 
                 //
-                // Reception des données sur les socket d et comm
+                // Reception des données sur les sockets d et comm
                 //
 
                 if (sockd > 0 && FD_ISSET(sockd, &readfds)) {
-                        receiv_sockd(sockd, recv_buffer);
-                        data_recv = 1;
-                        clock_gettime(CLOCK_MONOTONIC, &last_recv);
+                        cc = recv(sockd, recv_buffer, sizeof(char) * SMAX, 0);
+                        if(cc <= 0){
+                                // envoie demande de connection en broadcast
+                                send_connection_message(sockg, inet_addr(BROADCAST_ADDR),
+                                                        get_sock_own_addr(sockd), recv_buffer);
+                                close(sockd);
+                                sockd = -1;
+                        }
+                        else{
+                                data_recv = 1;
+                                clock_gettime(CLOCK_MONOTONIC, &last_recv);
+                        }
                 }
 
                 if (sockcomm > 0 && FD_ISSET(sockcomm, &readfds)) {
@@ -250,27 +259,27 @@ main(int argc, char *argv[])
                         goto flag_process;
 
                 if (!is_rg_buff_empty(&waiting_hosts)) {
-                        if (is_own_addr(get_sockaddr(sockg))) {
+                        if (is_own_addr(get_sock_remote_addr(sockg))) {
                                 close(sockd);
                                 close(sockg);
 
                                 pop_rg_buff(&waiting_hosts,
                                             &sockd); // recup de premier
                                                      // host de la file
-                                uint32_t nsockd_addr = get_sockaddr(sockd);
+                                uint32_t nsockd_addr = get_sock_remote_addr(sockd);
                                 sockg = socket(AF_INET, SOCK_STREAM, 0);
                                 connect_sock(nsockd_addr, sockg);
                                 continue;
                         }
 
-                        uint32_t old_sockd_addr = get_sockaddr(sockd);
+                        uint32_t old_sockd_addr = get_sock_remote_addr(sockd);
 
                         shutdown(sockd, SHUT_WR);
                         close(sockd);
                         pop_rg_buff(&waiting_hosts,
                                     &sockd); // recup de premier host de
                                              // la file
-                        uint32_t new_sockd_addr = get_sockaddr(sockd);
+                        uint32_t new_sockd_addr = get_sock_remote_addr(sockd);
                         // envoie du message 'c'
                         send_connection_message(sockg, old_sockd_addr,
                                                 new_sockd_addr, recv_buffer);
@@ -309,6 +318,8 @@ main(int argc, char *argv[])
                 // si detiné à la machine tester les flag et agir
                 switch (flag) {
                 case 'c':
+                        if(is_diffusion_addr(get_addr(recv_buffer)) && inet_socket_healthcheck(sockg))
+                                break;
                         // copy de l'addresse de connection
                         uint32_t addr;
                         memcpy(&addr, recv_buffer + DATA_OFFSET,

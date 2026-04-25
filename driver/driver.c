@@ -6,6 +6,7 @@
 #include <string.h>
 #include <sys/socket.h>
 #include <unistd.h>
+#include <errno.h>
 
 #include "../common/config.h"
 #include "../common/error.h"
@@ -194,13 +195,32 @@ send_connection_message(int sockg, uint32_t dest_addr, uint32_t new_host_addr,
  * Return : Adresse dans sockaddr_in.sin_addr.s_addr
  */
 uint32_t
-get_sockaddr(int sock)
+get_sock_remote_addr(int sock)
 {
         struct sockaddr_in addr;
         socklen_t len = sizeof(addr);
 
         if (getpeername(sock, (struct sockaddr *)&addr, &len) == -1) {
                 FATAL("getpeername");
+        }
+
+        return addr.sin_addr.s_addr;
+}
+
+/**
+ * get_sockaddr - Renvoie l'addresse local utilisé sur un socket
+ * @sock : socket ou chercher l'addresse
+ *
+ * Return : Adresse dans sockaddr_in.sin_addr.s_addr
+ */
+uint32_t
+get_sock_own_addr(int sock)
+{
+        struct sockaddr_in addr;
+        socklen_t len = sizeof(addr);
+
+        if (getsockname(sock, (struct sockaddr *)&addr, &len) == -1) {
+                FATAL("getsockname");
         }
 
         return addr.sin_addr.s_addr;
@@ -238,19 +258,33 @@ is_diffusion_addr(uint32_t addr)
 }
 
 /**
- * unix_socket_healthcheck - Verifie la santé d'un socket sans 
- * perturber la communication
- * @sock : Socket à vérifier 
- * Return : 1 si le socket est utilisable, 0 si non 
+ * repair_ring - Procedure de reconnexion si @sockd 
+ * tombe en panne
+ * @sockg : 
+ * @sockd : 
  */
-int 
-unix_socket_healthcheck(int sock)
+void 
+repair_ring(int sockg, int sockd)
 {
-
+       
 }
 
 int 
 inet_socket_healthcheck(int sock)
 {
+        char buf;
+        ssize_t n = recv(sock, &buf, 1, MSG_PEEK | MSG_DONTWAIT);
 
+        if (n > 0) {
+                return 1;// Data is available, connection is alive (and you didn’t consume it)
+        } else if (n == 0) {
+                return 0;// Peer has closed the connection
+        } else {
+                if (errno == EAGAIN || errno == EWOULDBLOCK) {
+                        return 1;// No data available right now, but socket is still alive
+                } else {
+                        return 0;// Real error → connection likely broken
+                }
+        }
 }
+

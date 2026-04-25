@@ -57,13 +57,16 @@ int
 is_diffusion_addr(uint32_t addr);
 
 uint32_t
-get_sockaddr(int sock);
+get_sock_remote_addr(int sock);
+
+uint32_t
+get_sock_own_addr(int sock);
 
 void
 connect_sock(uint32_t addr, int sock);
 
-int 
-unix_socket_healthcheck(int sock);
+void 
+repair_ring(int sockg, int sockd);
 
 int 
 inet_socket_healthcheck(int sock);
