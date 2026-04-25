@@ -66,7 +66,12 @@
 /**
  * Temps maximal d'attente avant de regénérer le token
 */
-#define MAX_WAIT 5
+#ifndef DEBUG
+#define MAX_WAIT 10
+#endif
+#ifdef DEBUG
+#define MAX_WAIT 3
+#endif 
 
 /**
  * Chemin où stocker la socket Unix qui est un fichier local

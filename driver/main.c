@@ -42,10 +42,13 @@ main(int argc, char *argv[])
 	struct timespec actual_time;
 	clock_gettime(CLOCK_MONOTONIC, &last_recv);
 
-	// socket d'ecoute unix comm
-	servcomm.sun_family = AF_UNIX;
+	// socket d'ecoute unix comm 
+  char cmd[64] = "rm ";
+  strcat(cmd, UNIX_SOCKET_PATH);
+	system(cmd);
+  servcomm.sun_family = AF_UNIX;
         const char *socket_path = getenv("DRIVER_SOCKET_PATH");
-        if (!socket_path) socket_path = UNIX_SOCKET_PATH;
+  if (!socket_path) socket_path = UNIX_SOCKET_PATH;
 	strncpy(servcomm.sun_path, socket_path,
 	        sizeof(servcomm.sun_path) - 1);
 
