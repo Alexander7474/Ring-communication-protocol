@@ -47,13 +47,13 @@ int
 skip_buffer(int sock, char *buffer);
 
 int
-send_connection_message(int sockg, uint32_t dest_addr,
-                        uint32_t new_host_addr, char *buffer);
+send_connection_message(int sockg, uint32_t dest_addr, uint32_t new_host_addr,
+                        char *buffer);
 
 int
 is_own_addr(uint32_t addr);
 
-int 
+int
 is_diffusion_addr(uint32_t addr);
 
 uint32_t

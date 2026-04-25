@@ -14,148 +14,148 @@
 void
 send_sockg(int sock, char *msg)
 {
-	int cc = write(sock, msg, sizeof(char) * SMAX);
-	if (cc <= 0)
-		FATAL("Send msgs write");
+        int cc = write(sock, msg, sizeof(char) * SMAX);
+        if (cc <= 0)
+                FATAL("Send msgs write");
 }
 
 void
 receiv_sockd(int sock, char *msg)
 {
-	int cc = read(sock, msg, sizeof(char) * SMAX);
-	if (cc <= 0)
-		FATAL("Receiv message");
+        int cc = read(sock, msg, sizeof(char) * SMAX);
+        if (cc <= 0)
+                FATAL("Receiv message");
 }
 
 void
 generate_message_buffer(char *buffer)
 {
-	char new_buffer[SMAX];
-	memset(new_buffer, '\0', sizeof(new_buffer));
-	new_buffer[0] = 'f';
-	memcpy(buffer, new_buffer, SMAX);
+        char new_buffer[SMAX];
+        memset(new_buffer, '\0', sizeof(new_buffer));
+        new_buffer[0] = 'f';
+        memcpy(buffer, new_buffer, SMAX);
 }
 
 void
 increment_token(char *buffer)
 {
-	char token[TOKEN_SIZE + 1] = { '\0' };
-	get_token(buffer, token);
-	int value = (int)strtol(token, NULL, 16);
-	value++;
-	snprintf(token, sizeof(char) * TOKEN_SIZE + 1, TOKEN_FMT,
-	         value); // uppercase, zero-padded to 8 chars
-	memcpy(buffer + 1, token, TOKEN_SIZE);
+        char token[TOKEN_SIZE + 1] = { '\0' };
+        get_token(buffer, token);
+        int value = (int)strtol(token, NULL, 16);
+        value++;
+        snprintf(token, sizeof(char) * TOKEN_SIZE + 1, TOKEN_FMT,
+                 value); // uppercase, zero-padded to 8 chars
+        memcpy(buffer + 1, token, TOKEN_SIZE);
 }
 
 char
 get_flag(char *buffer)
 {
-	return buffer[0];
+        return buffer[0];
 }
 
 void
 get_data(char *buffer, char *data)
 {
-	memcpy(data, buffer + DATA_OFFSET, DATA_SIZE);
+        memcpy(data, buffer + DATA_OFFSET, DATA_SIZE);
 }
 
 uint32_t
 get_addr(char *buffer)
 {
-	uint32_t addr;
-	memcpy(&addr, buffer + ADDR_OFFSET, sizeof(uint32_t));
-	return addr;
+        uint32_t addr;
+        memcpy(&addr, buffer + ADDR_OFFSET, sizeof(uint32_t));
+        return addr;
 }
 
 uint32_t
 get_src_addr(char *buffer)
 {
-	uint32_t addr;
-	memcpy(&addr, buffer + ADDR_SRC_OFFSET, sizeof(uint32_t));
-	return addr;
+        uint32_t addr;
+        memcpy(&addr, buffer + ADDR_SRC_OFFSET, sizeof(uint32_t));
+        return addr;
 }
 
 void
 get_token(char *buffer, char *token)
 {
-	memcpy(token, buffer + TOKEN_OFFSET, TOKEN_SIZE);
+        memcpy(token, buffer + TOKEN_OFFSET, TOKEN_SIZE);
 }
 
 void
 set_flag(char flag, char *buffer)
 {
-	buffer[0] = flag;
+        buffer[0] = flag;
 }
 
 void
 set_addr(uint32_t addr, char *buffer)
 {
-	memcpy(buffer + ADDR_OFFSET, &addr, sizeof(uint32_t));
+        memcpy(buffer + ADDR_OFFSET, &addr, sizeof(uint32_t));
 }
 
 void
 set_src_addr(uint32_t addr, char *buffer)
 {
-	memcpy(buffer + ADDR_SRC_OFFSET, &addr, sizeof(uint32_t));
+        memcpy(buffer + ADDR_SRC_OFFSET, &addr, sizeof(uint32_t));
 }
 
 void
 dump_message(char *buffer)
 {
-	char token[TOKEN_SIZE + 1], data[DATA_SIZE + 1];
-	get_token(buffer, token);
-	uint32_t addr = get_addr(buffer);
-	uint32_t src_addr = get_src_addr(buffer);
-	get_data(buffer, data);
-	token[TOKEN_SIZE] = '\0';
-	data[DATA_SIZE] = '\0';
-	printf("Message dump start ----------------\n");
-	printf("Message: %s\n", buffer);
-	printf("Flag: %c\n", get_flag(buffer));
-	printf("Token: %s\n", token);
-	printf("Source address: %u\n", src_addr);
-	printf("Destination address: %u\n", addr);
-	printf("Data: %s\n", data);
-	printf("Message dump end ------------------\n");
+        char token[TOKEN_SIZE + 1], data[DATA_SIZE + 1];
+        get_token(buffer, token);
+        uint32_t addr = get_addr(buffer);
+        uint32_t src_addr = get_src_addr(buffer);
+        get_data(buffer, data);
+        token[TOKEN_SIZE] = '\0';
+        data[DATA_SIZE] = '\0';
+        printf("Message dump start ----------------\n");
+        printf("Message: %s\n", buffer);
+        printf("Flag: %c\n", get_flag(buffer));
+        printf("Token: %s\n", token);
+        printf("Source address: %u\n", src_addr);
+        printf("Destination address: %u\n", addr);
+        printf("Data: %s\n", data);
+        printf("Message dump end ------------------\n");
 }
 
 int
 skip_buffer(int sock, char *buffer)
 {
-	char send_buffer[SMAX];
+        char send_buffer[SMAX];
 
-	memcpy(send_buffer, buffer, SMAX);
-	increment_token(send_buffer);
-	return write(sock, send_buffer, sizeof(send_buffer));
+        memcpy(send_buffer, buffer, SMAX);
+        increment_token(send_buffer);
+        return write(sock, send_buffer, sizeof(send_buffer));
 }
 
 int
 is_own_addr(uint32_t addr)
 {
-	struct ifaddrs *ifaddr, *ifa;
-	if (getifaddrs(&ifaddr) == -1) {
-		FATAL("getifaddrs");
-	}
+        struct ifaddrs *ifaddr, *ifa;
+        if (getifaddrs(&ifaddr) == -1) {
+                FATAL("getifaddrs");
+        }
 
-	int found = 0;
-	for (ifa = ifaddr; ifa != NULL; ifa = ifa->ifa_next) {
-		if (!ifa->ifa_addr)
-			continue;
-		if (ifa->ifa_addr->sa_family != AF_INET)
-			continue;
+        int found = 0;
+        for (ifa = ifaddr; ifa != NULL; ifa = ifa->ifa_next) {
+                if (!ifa->ifa_addr)
+                        continue;
+                if (ifa->ifa_addr->sa_family != AF_INET)
+                        continue;
 
-		struct sockaddr_in *local = (struct sockaddr_in *)ifa->ifa_addr;
+                struct sockaddr_in *local = (struct sockaddr_in *)ifa->ifa_addr;
 
-		// Compare IPs
-		if (addr == local->sin_addr.s_addr) {
-			found = 1;
-			break;
-		}
-	}
+                // Compare IPs
+                if (addr == local->sin_addr.s_addr) {
+                        found = 1;
+                        break;
+                }
+        }
 
-	freeifaddrs(ifaddr);
-	return found;
+        freeifaddrs(ifaddr);
+        return found;
 }
 
 /**
@@ -170,22 +170,21 @@ is_own_addr(uint32_t addr)
  * Return : 1 si ok, 0 > si non ok
  */
 int
-send_connection_message(int sockg, uint32_t dest_addr,
-                        uint32_t new_host_addr, char *buffer)
+send_connection_message(int sockg, uint32_t dest_addr, uint32_t new_host_addr,
+                        char *buffer)
 {
-    if (get_flag(buffer) != 'f')
-        return -1;
+        if (get_flag(buffer) != 'f')
+                return -1;
 
-    char send_buffer[SMAX];
-    memcpy(send_buffer, buffer, SMAX);
+        char send_buffer[SMAX];
+        memcpy(send_buffer, buffer, SMAX);
 
-	memcpy(send_buffer + DATA_OFFSET, &new_host_addr,
-	       sizeof(uint32_t));
-	increment_token(send_buffer);
-	set_flag('c', send_buffer);
-	set_addr(dest_addr, send_buffer);
+        memcpy(send_buffer + DATA_OFFSET, &new_host_addr, sizeof(uint32_t));
+        increment_token(send_buffer);
+        set_flag('c', send_buffer);
+        set_addr(dest_addr, send_buffer);
 
-    return write(sockg, send_buffer, sizeof(send_buffer));
+        return write(sockg, send_buffer, sizeof(send_buffer));
 }
 
 /**
@@ -197,14 +196,14 @@ send_connection_message(int sockg, uint32_t dest_addr,
 uint32_t
 get_sockaddr(int sock)
 {
-	struct sockaddr_in addr;
-	socklen_t len = sizeof(addr);
+        struct sockaddr_in addr;
+        socklen_t len = sizeof(addr);
 
-	if (getpeername(sock, (struct sockaddr *)&addr, &len) == -1) {
-		FATAL("getpeername");
-	}
+        if (getpeername(sock, (struct sockaddr *)&addr, &len) == -1) {
+                FATAL("getpeername");
+        }
 
-	return addr.sin_addr.s_addr;
+        return addr.sin_addr.s_addr;
 }
 
 /**
@@ -215,25 +214,25 @@ get_sockaddr(int sock)
 void
 connect_sock(uint32_t addr, int sock)
 {
-	struct sockaddr_in new_addr;
-	memset(&new_addr, 0, sizeof(new_addr));
-	new_addr.sin_family = AF_INET;
-	new_addr.sin_port = htons(PORT); // same port as the original connection
-	new_addr.sin_addr.s_addr = addr;
-	connect(sock, (struct sockaddr *)&new_addr, sizeof(new_addr));
+        struct sockaddr_in new_addr;
+        memset(&new_addr, 0, sizeof(new_addr));
+        new_addr.sin_family = AF_INET;
+        new_addr.sin_port = htons(PORT); // same port as the original connection
+        new_addr.sin_addr.s_addr = addr;
+        connect(sock, (struct sockaddr *)&new_addr, sizeof(new_addr));
 }
 
 /**
- * is_diffusion_addr - Retourne si oui ou non @addr 
+ * is_diffusion_addr - Retourne si oui ou non @addr
  * est une address de diffusion
  * @addr : Adresse à tester
- * Return : 1 si @addr est une addresse de diffusion, 0 si non 
+ * Return : 1 si @addr est une addresse de diffusion, 0 si non
  */
-int 
+int
 is_diffusion_addr(uint32_t addr)
 {
-  if(inet_addr(BROADCAST_ADDR) == addr)
-    return 1;
-  else 
-    return 0;
+        if (inet_addr(BROADCAST_ADDR) == addr)
+                return 1;
+        else
+                return 0;
 }
