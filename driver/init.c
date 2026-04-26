@@ -7,12 +7,11 @@
 #include <sys/un.h>
 #include <unistd.h>
 
-#include "init.h"
 #include "../common/config.h"
 #include "../common/error.h"
+#include "init.h"
 
-int 
-init_inet_listenner(struct sockaddr_in *servd)
+int init_inet_listenner(struct sockaddr_in *servd)
 {
         servd->sin_family = AF_INET;
         servd->sin_port = htons(PORT);
@@ -33,21 +32,22 @@ init_inet_listenner(struct sockaddr_in *servd)
         return newsockd;
 }
 
-int 
-init_unix_listenner(struct sockaddr_un *servcomm)
+int init_unix_listenner(struct sockaddr_un *servcomm)
 {
         char cmd[64] = "rm ";
         strcat(cmd, UNIX_SOCKET_PATH);
         int cc = system(cmd);
-        if(cc < 0)
+        if (cc < 0)
                 printf("Error while deleting localsock.sock");
         servcomm->sun_family = AF_UNIX;
         const char *socket_path = getenv("DRIVER_SOCKET_PATH");
         if (!socket_path)
                 socket_path = UNIX_SOCKET_PATH;
-        strncpy(servcomm->sun_path, socket_path, sizeof(servcomm->sun_path) - 1);
+        strncpy(servcomm->sun_path, socket_path,
+                sizeof(servcomm->sun_path) - 1);
 
-        int newsockcomm = socket(AF_UNIX, SOCK_STREAM, 0); // Création de la socket
+        int newsockcomm =
+                socket(AF_UNIX, SOCK_STREAM, 0); // Création de la socket
         cc = bind(newsockcomm, (struct sockaddr *)servcomm, sizeof(*servcomm));
         if (cc == -1)
                 FATAL("bind unix"); // Erreur à l'attachement

@@ -48,7 +48,6 @@ AllowShortBlocksOnASingleLine: Never
 AllowShortCaseLabelsOnASingleLine: false
 
 # Breaking
-AlwaysBreakAfterReturnType:   TopLevel
 BreakBeforeBinaryOperators:   None
 BreakBeforeTernaryOperators:  false
 BreakStringLiterals:          false
