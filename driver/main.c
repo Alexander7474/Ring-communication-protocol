@@ -13,6 +13,7 @@
 #include "../common/error.h"
 #include "../common/ring_buffer.h"
 #include "driver.h"
+#include "init.h"
 
 int
 main(int argc, char *argv[])
@@ -26,7 +27,6 @@ main(int argc, char *argv[])
         int cc, newsockd, newsockcomm, max_sd;
         struct sockaddr_in servd;
         struct sockaddr_un servcomm;
-        int opt = 1;
 
         int comm_request = 0;
 
@@ -43,41 +43,10 @@ main(int argc, char *argv[])
         clock_gettime(CLOCK_MONOTONIC, &last_recv);
 
         // socket d'ecoute unix comm
-        char cmd[64] = "rm ";
-        strcat(cmd, UNIX_SOCKET_PATH);
-        cc = system(cmd);
-        if(cc < 0)
-                printf("Error while deleting localsock.sock");
-        servcomm.sun_family = AF_UNIX;
-        const char *socket_path = getenv("DRIVER_SOCKET_PATH");
-        if (!socket_path)
-                socket_path = UNIX_SOCKET_PATH;
-        strncpy(servcomm.sun_path, socket_path, sizeof(servcomm.sun_path) - 1);
-
-        newsockcomm = socket(AF_UNIX, SOCK_STREAM, 0); // Création de la socket
-        cc = bind(newsockcomm, (struct sockaddr *)&servcomm, sizeof(servcomm));
-        if (cc == -1)
-                FATAL("bind unix"); // Erreur à l'attachement
-
-        cc = listen(newsockcomm, 5);
-        if (cc == -1)
-                FATAL("listen unix");
+        newsockcomm = init_unix_listenner(&servcomm);
 
         // socket d'écoute réseau
-        servd.sin_family = AF_INET;
-        servd.sin_port = htons(PORT);
-        servd.sin_addr.s_addr = htonl(INADDR_ANY);
-
-        newsockd = socket(AF_INET, SOCK_STREAM, 0); // Création de la socket
-
-        setsockopt(newsockd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt));
-        cc = bind(newsockd, (struct sockaddr *)&servd, sizeof(servd));
-        if (cc == -1)
-                FATAL("bind network"); // Erreur à l'attachement
-
-        cc = listen(newsockd, 5);
-        if (cc == -1)
-                FATAL("listen network");
+        newsockd = init_inet_listenner(&servd);
 
         fd_set readfds;
         while (1) {
@@ -191,28 +160,18 @@ main(int argc, char *argv[])
                 // Connection de sockg
                 //
 
-                struct hostent *hp;
-                struct sockaddr_in servg;
-
-                // connection de sockg avec address en argument
                 if (sockg <= 0) {
+                        struct hostent *hp;
                         hp = gethostbyname(argv[1]);
                         if (hp == NULL)
-                                FATAL("gethostbyname"); // Toujours tester pour
-                                                        // éviter d'accumuler
-                                                        // les erreurs
+                                FATAL("gethostbyname"); 
 
-                        servg.sin_family = AF_INET;
-                        servg.sin_port = htons(PORT);
-                        bcopy(hp->h_addr, (char *)&servg.sin_addr,
+                        uint32_t addr;
+                        bcopy(hp->h_addr, (uint32_t *)&addr,
                               hp->h_length);
 
                         sockg = socket(AF_INET, SOCK_STREAM, 0);
-
-                        if (connect(sockg, (struct sockaddr *)&servg,
-                                    sizeof(servg)) == -1) {
-                                FATAL("Connect socket");
-                        }
+                        connect_sock(addr, sockg);
 #ifdef DEBUG
                         printf("Client prêt !\n");
 #endif
@@ -301,11 +260,13 @@ main(int argc, char *argv[])
                 if (!is_own_addr(get_addr(recv_buffer)) &&
                     !is_diffusion_addr(get_addr(recv_buffer))) {
                         // si packet envoyer par le driver lui même
-                        if (!is_own_addr(get_src_addr(recv_buffer))) {
-                                skip_buffer(sockg, recv_buffer);
+                        if (is_own_addr(get_src_addr(recv_buffer))) {
+                                generate_message_buffer(send_buffer);
+                                clock_gettime(CLOCK_MONOTONIC, &last_recv);
 #ifdef DEBUG
                                 printf("Token regénéré\n");
 #endif
+                                send_sockg(sockg, send_buffer);
                                 continue;
                         }
 
@@ -318,9 +279,17 @@ main(int argc, char *argv[])
                 // si detiné à la machine tester les flag et agir
                 switch (flag) {
                 case 'c':
+                        // Si le message de connexion est une diffusion je vérifie 
+                        // que sockg est toujours actif.
+                        // Le message de connexion avec address de diffusion fait 
+                        // partie de la procedure de reconnexion de l'anneau en 
+                        // cas de perte d'un host.
+                        // Si sockg en vie -> c'est au prochain driver de vérifier
+                        // si son sockg a crash.
                         if(is_diffusion_addr(get_addr(recv_buffer)) && inet_socket_healthcheck(sockg))
                                 break;
-                        // copy de l'addresse de connection
+
+                        // Connexion de sockg à la nouvelle address 
                         uint32_t addr;
                         memcpy(&addr, recv_buffer + DATA_OFFSET,
                                sizeof(uint32_t));
