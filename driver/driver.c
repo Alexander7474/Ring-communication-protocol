@@ -540,12 +540,11 @@ int handle_flag_free(int *sockd, int *sockg, int *sockcomm, int *comm_request,
                 send_connection_message(*sockg, old_sockd_addr, new_sockd_addr,
                                         recv_buffer);
 
-        } else if (*comm_request >= 1 && *sockcomm > 0) {
+        } else if (*comm_request >= 1 && *sockcomm > 0 && inet_socket_healthcheck(*sockcomm)) {
                 send_sockg(*sockcomm, recv_buffer);
                 receiv_sockd(*sockcomm, recv_buffer);
                 skip_buffer(*sockg, recv_buffer);
                 (*comm_request)--;
-
         } else {
                 int cc = skip_buffer(*sockg, recv_buffer);
                 if (cc <= 0)
@@ -599,9 +598,11 @@ void handle_flag_local(char flag, int *sockg, int *sockcomm, char *recv_buffer,
         case 'i':
         case 'h':
         case 's':
-                if (*sockcomm > 0) {
+                if (*sockcomm > 0 && inet_socket_healthcheck(*sockcomm)) {
                         send_sockg(*sockcomm, recv_buffer);
                         receiv_sockd(*sockcomm, recv_buffer);
+                        skip_buffer(*sockg, recv_buffer);
+                }else{
                         skip_buffer(*sockg, recv_buffer);
                 }
                 break;
