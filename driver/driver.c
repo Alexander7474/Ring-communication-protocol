@@ -582,8 +582,10 @@ void handle_flag_local(char flag, int *sockg, int *sockcomm, char *recv_buffer,
                 // Si sockg en vie -> c'est au prochain driver de vérifier
                 // si son sockg a crash.
                 if (is_diffusion_addr(get_addr(recv_buffer)) &&
-                    inet_socket_healthcheck(*sockg))
+                    inet_socket_healthcheck(*sockg)){
+                        skip_buffer(*sockg, recv_buffer);
                         break;
+                }
 
                 // Connexion de sockg à la nouvelle address
                 uint32_t addr;
