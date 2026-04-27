@@ -11,7 +11,7 @@ NC=\033[0m # No Color
 ifeq ($(DEBUG),1)
     CFLAGS += -g3 -O0 -DDEBUG -DSLOW_MODE
 else
-    CFLAGS += -O2 -DNDEBUG
+    CFLAGS += -O2
 endif
 
 export CC CFLAGS LDFLAGS
